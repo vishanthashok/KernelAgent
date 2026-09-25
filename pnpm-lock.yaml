@@ -33,12 +33,18 @@ importers:
         specifier: workspace:*
         version: link:packages/telemetry
     devDependencies:
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2.11.0
+        version: 2.11.0(@opentelemetry/api@1.9.1)
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.4
+      '@types/ws':
+        specifier: ^8.5.0
+        version: 8.18.1
       tsx:
         specifier: ^4.19.0
         version: 4.23.15
@@ -48,6 +54,9 @@ importers:
       vitest:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@22.20.4)(tsx@4.23.15)(yaml@2.9.1)
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.3
 
   apps/api:
     dependencies:
@@ -755,6 +764,9 @@ packages:
 
   '@types/node@22.20.4':
     resolution: {integrity: sha512-zJRE40jpHtKqE/C4fgHrAKQLJuSpzEnP9ff9Y7YtoR3Wd2pwqzlekDeEuUQXjRd+QCYnVnNwuJYmhdk9XV8gvA==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@vitest/expect@3.2.7':
     resolution: {integrity: sha512-E8eBXaKibuvH2pSZErOjdVb5vF4PbKYcrnluBTYxEk1l/VhhwZg1kZQsdtjq+CsF5CFydf2Rdkz7jDHKSisi3w==}
@@ -2001,6 +2013,10 @@ snapshots:
   '@types/node@22.20.4':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 22.20.4
 
   '@vitest/expect@3.2.7':
     dependencies:
