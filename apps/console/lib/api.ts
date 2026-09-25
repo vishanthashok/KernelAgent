@@ -96,6 +96,7 @@ export interface MemoryEntry {
 }
 
 export const api = {
+  metrics: (range: string) => call<import("./metrics").Metrics>(`/metrics?range=${encodeURIComponent(range)}`),
   memory: (scope: string) => call<{ scope: string; count: number; entries: MemoryEntry[] }>(`/memory?scope=${encodeURIComponent(scope)}`),
   deleteMemory: (id: number) => call<{ deleted: number }>(`/memory/${id}`, { method: "DELETE" }),
   clearMemory: (scope: string) => call<{ cleared: number }>(`/memory?scope=${encodeURIComponent(scope)}`, { method: "DELETE" }),

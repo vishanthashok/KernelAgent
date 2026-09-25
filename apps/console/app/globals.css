@@ -11,6 +11,27 @@
   --color-term-accent: #b9d4ff;
 }
 
+/* Chart palette. Categorical slots are the dark steps of the validated reference palette,
+   checked against the card surface (#121519): CVD ΔE >= 8.4, normal ΔE >= 19.3, >= 3:1.
+   Assign in slot order, never cycled. Status colors are reserved for states and always
+   ship with a label. */
+:root {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --chart-axis: rgba(255, 255, 255, 0.18);
+}
+
 html,
 body {
   background: var(--color-term-bg);

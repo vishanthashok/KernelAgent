@@ -189,6 +189,9 @@ export function ChatApp() {
           >
             Stats
           </button>
+          <Link href="/dashboard" className="hidden font-mono text-[11px] tracking-[0.2em] text-term-dim uppercase hover:text-term-fg sm:inline">
+            Dashboard
+          </Link>
           <Link href="/console" className="font-mono text-[11px] tracking-[0.2em] text-term-dim uppercase hover:text-term-fg">
             Console →
           </Link>

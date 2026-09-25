@@ -185,6 +185,13 @@ curl -XPOST localhost:4000/processes/101/kill
 curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/json' -d '{"signal":"approve"}'
 ```
 
+### Dashboard
+
+`/dashboard` is a metrics view over the event log, for the last 15 minutes up to 7 days. It shows:
+- Cost, tokens, calls, cache hit rate, savings, p95 latency, error rate, and failed agents, each against the previous window.
+- Charts for token mix, cost, latency, syscalls by type, errors, and agent outcomes. Every chart has a table view.
+- Spend by model, the most expensive jobs, and recent errors.
+
 ### Saving tokens
 
 - Prompt caching on every Anthropic call. An agent's later turns read the earlier prefix at a tenth of the input price. The stats panel shows the cache hit rate and the dollars saved.

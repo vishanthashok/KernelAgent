@@ -116,6 +116,13 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 - A job that brought a key never falls back to the server key. A retry after the key is dropped fails and asks for a resubmit.
 - The console stores the key in localStorage (`kernelagent.providerKey`) and the last picked model in `kernelagent.model`.
 
+## Dashboard
+
+- `/dashboard` (`apps/console/components/dashboard/*`) reads `GET /metrics?range=15m|1h|6h|24h|7d`. It does not use the WS stream, so it works for long windows.
+- `apps/api/metrics.ts` `buildMetrics` aggregates `MetricsRepo` rows (json_extract over `events`, index `events_type_time`) into 60 buckets, totals, previous-window totals, by-model, top jobs, and recent errors. The route adds live process counts.
+- Charts are plain SVG (`TimeChart.tsx`). Colors are CSS variables in `app/globals.css`, from a palette validated against the card surface. Keep categorical slots in order, and keep status colors for states only.
+- `/console?job=<id>` preselects a job. The dashboard links there.
+
 ## Chat memory
 
 - Table `memories` (not append-only), `MemoryRepo` in `packages/db/repositories.ts`. Scope = chat id.

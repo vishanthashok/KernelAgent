@@ -45,6 +45,12 @@ export function Console() {
   const [inspect, setInspect] = useState<string>();
   const [newJob, setNewJob] = useState(false);
 
+  // /console?job=<id> (from the dashboard) opens that job.
+  useEffect(() => {
+    const j = new URLSearchParams(window.location.search).get("job");
+    if (j) setJobId(j);
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -99,6 +105,9 @@ export function Console() {
             <span className={`h-2 w-2 rounded-full ${k.connected ? "bg-emerald-500" : "bg-red-500"}`} />
             {k.connected ? "live" : "offline"}
           </span>
+          <Link href="/dashboard" className="font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-600 hover:text-neutral-950">
+            Dashboard
+          </Link>
           <Link href="/" className="font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-600 hover:text-neutral-950">
             Chat
           </Link>
