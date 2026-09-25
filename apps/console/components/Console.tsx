@@ -9,6 +9,7 @@ import { IpcView } from "./IpcView";
 import { SandboxesView } from "./SandboxesView";
 import { TracesView } from "./TracesView";
 import { Inspector } from "./Inspector";
+import { NewJob } from "./NewJob";
 
 const TABS = ["Processes", "Task Graph", "IPC", "Sandboxes", "Traces"] as const;
 type Tab = (typeof TABS)[number];
@@ -19,6 +20,7 @@ export function Console() {
   const [tab, setTab] = useState<Tab>("Processes");
   const [jobId, setJobId] = useState<string>("all");
   const [inspect, setInspect] = useState<string>();
+  const [newJob, setNewJob] = useState(false);
 
   const procs = useMemo(
     () => [...k.processes.values()].filter((p) => jobId === "all" || p.jobId === jobId),
@@ -60,7 +62,13 @@ export function Console() {
             {t}
           </button>
         ))}
-        <label className="ml-auto flex items-center gap-2 py-1 text-term-dim">
+        <button
+          onClick={() => setNewJob(true)}
+          className="ml-auto border border-term-accent px-2 py-0.5 text-term-accent hover:bg-term-accent/10"
+        >
+          + New Job
+        </button>
+        <label className="flex items-center gap-2 py-1 pl-3 text-term-dim">
           job
           <select
             value={jobId}
@@ -92,6 +100,20 @@ export function Console() {
           <EventStream events={events} onSelect={setInspect} />
         </aside>
       </main>
+
+      {newJob && (
+        <NewJob
+          {...(s?.provider ? { provider: s.provider } : {})}
+          onClose={() => setNewJob(false)}
+          onSubmitted={(res) => {
+            setNewJob(false);
+            setJobId(res.jobId);
+            setTab("Processes");
+            const first = Object.values(res.pids)[0];
+            if (first) setInspect(first);
+          }}
+        />
+      )}
 
       {inspect && k.processes.get(inspect) && (
         <Inspector process={k.processes.get(inspect)!} events={k.events} now={now} onClose={() => setInspect(undefined)} onSelect={setInspect} />

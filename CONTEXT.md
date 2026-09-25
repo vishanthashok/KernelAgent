@@ -55,7 +55,7 @@ Adapters:
 
 Apps:
 - `apps/api/server.ts`: all routes and `WS /events/stream`. `apps/api/main.ts`: boot, loads example mock scripts.
-- `apps/console`: `lib/useKernel.ts` (WS client, folds events), `lib/format.ts`, `components/*` (one per tab plus `Inspector.tsx`).
+- `apps/console`: `lib/useKernel.ts` (WS client, folds events), `lib/api.ts` (REST calls incl. `submitJob`), `lib/format.ts`, `components/*` (one per tab plus `Inspector.tsx` and `NewJob.tsx`, the prompt box that submits jobs).
 
 Other:
 - `examples/coding-task`, `examples/research-pipeline` (job.json + mock-script.ts), `examples/approval-gate.json`, `examples/hello-dag.json`, `examples/run.ts`, `examples/scripts.ts`.
@@ -108,4 +108,5 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 - MockLLM picks its script step by the number of assistant turns in the conversation. It is stateless, which is why checkpoint resume works with it.
 - The API (mock mode) loads all example mock scripts and adds 400 ms latency per call (`MOCK_LATENCY_MS`). `pnpm demo` uses 700 ms and disables OTel.
 - Tests use `:memory:` SQLite and a real LocalSandbox in the OS temp dir. `python3` must exist for the coding example.
-- Pushes go straight to `claude/optimistic-newton-ikkywj`. The owner does not want a PR.
+- Pushes go straight to `main`. The owner does not want a PR.
+- Deployed: API on Railway (`kernelagentapi-production.up.railway.app`, listens on Railway's `PORT`, needs `HOST=0.0.0.0` and a `/data` volume). Console on Vercel with Root Directory `apps/console` and `NEXT_PUBLIC_API_URL` set to the Railway URL.

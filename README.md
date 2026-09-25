@@ -157,7 +157,7 @@ Each process has a FIFO mailbox stored in SQLite. `SEND` queues a message for a 
 ## Observability
 
 - **Event log.** SQLite, append-only (triggers block UPDATE and DELETE), with a monotonic sequence. Each `LLM_CALL` stores the full request and response. `packages/kernel/replay.ts` rebuilds every process from the log, and a test checks it against the live table field by field.
-- **Console.** Processes, Task Graph, IPC, Sandboxes, and Traces tabs, a live event stream, and a process inspector. Traces rewinds a job to any sequence and shows what the model saw and said.
+- **Console.** Processes, Task Graph, IPC, Sandboxes, and Traces tabs, a live event stream, and a process inspector. The `+ New Job` button opens a prompt box: type a goal, pick permissions, and run it as an agent, or launch one of the examples. Traces rewinds a job to any sequence and shows what the model saw and said.
 - **OpenTelemetry.** Spans for each job, process run, LLM call, syscall, and scheduler dispatch. LLM and syscall spans nest under their process run, which nests under its job. Metrics cover processes by state, tokens, cost, queue depth, and rate-limiter saturation. The console exporter is the default. Set `OTEL_EXPORTER_OTLP_ENDPOINT` for OTLP, or `OTEL_SDK_DISABLED=true` to turn it off.
 - **CPU\*** in the console is runtime utilization, the share of a process's life spent `RUNNING`. It is not real CPU.
 

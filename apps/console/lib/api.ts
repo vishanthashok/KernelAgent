@@ -32,8 +32,14 @@ export interface Stats {
   lastSequence: number;
 }
 
+export interface SubmitResult {
+  jobId: string;
+  pids: Record<string, string>;
+}
+
 export const api = {
   stats: () => call<Stats>("/stats"),
+  submitJob: (spec: unknown) => call<SubmitResult>("/jobs", { method: "POST", body: JSON.stringify(spec) }),
   kill: (pid: string) => call<{ killed: string[] }>(`/processes/${pid}/kill`, { method: "POST" }),
   signal: (pid: string, signal: string) =>
     call<{ ok: boolean; message: string }>(`/processes/${pid}/signal`, { method: "POST", body: JSON.stringify({ signal }) }),
