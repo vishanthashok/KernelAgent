@@ -1,0 +1,9 @@
+{
+  "name": "hello-dag",
+  "processes": [
+    { "id": "plan", "role": "planner", "goal": "Break the task into two parts", "priority": 10 },
+    { "id": "left", "role": "researcher", "goal": "Research part one", "dependsOn": ["plan"] },
+    { "id": "right", "role": "researcher", "goal": "Research part two", "dependsOn": ["plan"] },
+    { "id": "review", "role": "reviewer", "goal": "Combine and review", "dependsOn": ["left", "right"] }
+  ]
+}

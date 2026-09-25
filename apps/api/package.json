@@ -1,0 +1,16 @@
+{
+  "name": "@kernelagent/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./server.ts", "./*": "./*.ts" },
+  "scripts": { "dev": "tsx watch main.ts", "start": "tsx main.ts" },
+  "dependencies": {
+    "@fastify/cors": "^11.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "@kernelagent/kernel": "workspace:*",
+    "@kernelagent/runtime": "workspace:*",
+    "@kernelagent/telemetry": "workspace:*",
+    "fastify": "^5.0.0"
+  }
+}

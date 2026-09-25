@@ -1,0 +1,8 @@
+{
+  "name": "@kernelagent/kernel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./index.ts", "./*": "./*.ts" },
+  "dependencies": { "zod": "^4.0.0", "@kernelagent/db": "workspace:*", "@kernelagent/llm": "workspace:*", "@kernelagent/sandbox": "workspace:*", "@kernelagent/ipc": "workspace:*", "@kernelagent/telemetry": "workspace:*" }
+}

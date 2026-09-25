@@ -1,0 +1,73 @@
+// ModelClient interface. The kernel only ever talks to a model through this.
+
+export interface TextBlock {
+  type: "text";
+  text: string;
+}
+
+export interface ToolUseBlock {
+  type: "tool_use";
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+export interface ToolResultBlock {
+  type: "tool_result";
+  tool_use_id: string;
+  content: string;
+  is_error?: boolean;
+}
+
+/**
+ * Provider-specific block (e.g. a thinking block) that the kernel must carry back to the
+ * provider unchanged but never interprets.
+ */
+export interface OpaqueBlock {
+  type: "opaque";
+  provider: string;
+  block: unknown;
+}
+
+export type ContentBlock = TextBlock | ToolUseBlock | OpaqueBlock;
+
+export interface Message {
+  role: "user" | "assistant";
+  content: string | (ContentBlock | ToolResultBlock)[];
+}
+
+export interface ToolDef {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+}
+
+export interface CompletionRequest {
+  system: string;
+  messages: Message[];
+  tools: ToolDef[];
+  /** Kernel metadata. Real providers ignore it. The mock uses it to pick a script. */
+  metadata?: { pid: string; role: string; goal: string; jobId: string };
+}
+
+export interface CompletionResponse {
+  content: ContentBlock[];
+  inputTokens: number;
+  outputTokens: number;
+  raw: unknown;
+}
+
+export interface ModelClient {
+  readonly provider: string;
+  readonly model: string;
+  complete(req: CompletionRequest, opts?: { signal?: AbortSignal }): Promise<CompletionResponse>;
+}
+
+/** Rough token estimate: 4 characters per token. Used for rate-limit pre-checks and the mock. */
+export function estimateTokens(value: unknown): number {
+  const s = typeof value === "string" ? value : JSON.stringify(value ?? "");
+  return Math.max(1, Math.ceil(s.length / 4));
+}
+
+export { MockLLM, type MockScript, type MockStep, type MockStepValue, type MockContext, type MockLLMOptions } from "./mock.ts";
+export { createModelClient } from "./factory.ts";
