@@ -63,6 +63,7 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **One mechanism for all blocking.** `RECEIVE` on an empty mailbox, `SLEEP`, and the approval gate all call `kernel.block()`: `RUNNING -> WAITING`, emit `BLOCKED`, release the slot, and await a continuation. `wake()` moves the process `WAITING -> READY`. When the scheduler dispatches it again (`READY -> RUNNING`), the continuation resolves. A blocked process never holds a concurrency slot.
 - **Turn-boundary yield.** After each turn, if the ready queue is non-empty and all slots are busy, the process yields (`RUNNING -> READY`). This keeps long agents from monopolizing slots.
 - **Rate-limit reservations.** Dispatch reserves one request from the provider bucket for the process. Its next model call consumes the reservation. Ending the run releases it. This stops one scheduler tick from admitting more processes than the bucket can serve.
+- **E2B paths are rooted at `/home/user`.** `E2BSandbox` maps `/x` and `x` to `/home/user/x` and collapses `..`, the same semantics as LocalSandbox, and runs commands in `/home/user`.
 - **Sandboxes are created lazily** at first dispatch, and only for processes holding `FS_READ`, `FS_WRITE`, or `EXEC`. The sandbox survives retries and is destroyed when the process ends for good.
 
 ## Checkpoints

@@ -1,9 +1,19 @@
 // E2BSandbox: real isolation via E2B microVMs. Selected with SANDBOX_PROVIDER=e2b and E2B_API_KEY.
+import { posix } from "node:path";
 import { CommandExitError, Sandbox } from "@e2b/code-interpreter";
 import { SandboxError, type ExecResult, type SandboxAdapter } from "./types.ts";
 
-// Commands run and relative paths resolve inside this directory in the microVM.
+// Commands run in this directory, and every sandbox path is rooted here.
 const WORKDIR = "/home/user";
+
+/**
+ * Map a kernel sandbox path to a path in the microVM. Like LocalSandbox, "/x" and "x" both
+ * mean <sandbox>/x, and ".." cannot climb above the sandbox root.
+ */
+export function toE2BPath(p: string): string {
+  const n = posix.normalize("/" + p);
+  return n === "/" ? WORKDIR : WORKDIR + n;
+}
 
 export class E2BSandbox implements SandboxAdapter {
   readonly provider = "e2b";
@@ -26,7 +36,7 @@ export class E2BSandbox implements SandboxAdapter {
   }
 
   private path(p: string): string {
-    return p.startsWith("/") ? p : `${WORKDIR}/${p}`;
+    return toE2BPath(p);
   }
 
   async readFile(id: string, path: string): Promise<string> {
