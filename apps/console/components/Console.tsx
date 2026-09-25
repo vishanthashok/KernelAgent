@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useKernel, useNow } from "@/lib/useKernel";
 import { hhmmss } from "@/lib/format";
 import { ProcessTable } from "./ProcessTable";
@@ -14,6 +14,24 @@ import { NewJob } from "./NewJob";
 const TABS = ["Processes", "Task Graph", "IPC", "Sandboxes", "Traces"] as const;
 type Tab = (typeof TABS)[number];
 
+const TAB_BLURB: Record<Tab, string> = {
+  Processes: "Every agent is a process with a state, a budget, and a sandbox.",
+  "Task Graph": "Dependencies and spawned children for the selected job.",
+  IPC: "Mailboxes and the messages agents send each other.",
+  Sandboxes: "Isolated environments and the process that owns each one.",
+  Traces: "Rewind a job event by event, with the exact model input and output.",
+};
+
+function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
+  return (
+    <div className="card px-5 py-4">
+      <div className="label-caps">{label}</div>
+      <div className="mt-2 text-2xl font-semibold tracking-tight">{value}</div>
+      {sub !== undefined && <div className="mt-1 text-xs text-term-dim">{sub}</div>}
+    </div>
+  );
+}
+
 export function Console() {
   const k = useKernel();
   const now = useNow(1000);
@@ -21,6 +39,16 @@ export function Console() {
   const [jobId, setJobId] = useState<string>("all");
   const [inspect, setInspect] = useState<string>();
   const [newJob, setNewJob] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setNewJob(false);
+      setInspect(undefined);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const procs = useMemo(
     () => [...k.processes.values()].filter((p) => jobId === "all" || p.jobId === jobId),
@@ -34,72 +62,153 @@ export function Console() {
   );
   const graphJob = jobId !== "all" ? jobId : k.jobs[k.jobs.length - 1]?.id;
   const s = k.stats;
-  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  const tokens = procs.reduce((n, p) => n + p.tokensUsed, 0);
+  const cost = procs.reduce((n, p) => n + p.costUsd, 0);
+  const live = procs.filter((p) => p.status !== "TERMINATED" && p.status !== "FAILED").length;
+  const wide = tab === "Traces";
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-b border-term-line px-4 py-2">
-        <span className="font-bold tracking-[0.2em] text-term-accent">KERNELAGENT</span>
-        <span>uptime {s ? hhmmss(now - s.bootedAt) : "--:--:--"}</span>
-        {s && (
-          <span className="text-term-dim">
-            llm {s.provider}/{s.model} · sandbox {s.sandbox ?? "none"} · run {s.running}/{s.maxConcurrency} · queue {s.queueDepth} · ratelimit req{" "}
-            {pct(s.rateLimiter.requests)} tok {pct(s.rateLimiter.tokens)}
+    <div className="mx-auto max-w-[1520px] px-4 pb-16 md:px-8">
+      {/* Floating nav, like a pill over the page */}
+      <nav className="sticky top-4 z-10 mt-4 flex items-center gap-4 rounded-2xl bg-white/90 px-4 py-3 text-neutral-600 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur md:px-6">
+        <div className="hidden min-w-0 flex-1 items-center gap-6 lg:flex">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`font-mono text-[11px] uppercase tracking-[0.22em] transition-colors ${
+                tab === t ? "text-neutral-950" : "text-neutral-500 hover:text-neutral-900"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        <div className="shrink-0 font-mono text-sm font-semibold tracking-[0.35em] text-neutral-950">KERNELAGENT</div>
+        <div className="flex flex-1 items-center justify-end gap-4">
+          <span className="hidden items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] sm:flex">
+            <span className={`h-2 w-2 rounded-full ${k.connected ? "bg-emerald-500" : "bg-red-500"}`} />
+            {k.connected ? "live" : "offline"}
           </span>
-        )}
-        <span className={`ml-auto ${k.connected ? "text-emerald-400" : "text-red-400"}`}>
-          {k.connected ? "● live" : "○ disconnected"} · seq {k.lastSequence}
-        </span>
-      </header>
+          <button onClick={() => setNewJob(true)} className="pill pill-dark text-sm">
+            New Job
+          </button>
+        </div>
+      </nav>
 
-      <nav className="flex flex-wrap items-center gap-1 border-b border-term-line px-2">
+      {/* Tabs for small screens */}
+      <div className="mt-3 flex gap-2 overflow-x-auto lg:hidden">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-3 py-1.5 ${tab === t ? "border-b-2 border-term-accent text-term-fg" : "text-term-dim hover:text-term-fg"}`}
+            className={`pill shrink-0 text-xs ${tab === t ? "pill-light" : "pill-ghost"}`}
           >
             {t}
           </button>
         ))}
-        <button
-          onClick={() => setNewJob(true)}
-          className="ml-auto border border-term-accent px-2 py-0.5 text-term-accent hover:bg-term-accent/10"
-        >
-          + New Job
-        </button>
-        <label className="flex items-center gap-2 py-1 pl-3 text-term-dim">
-          job
-          <select
-            value={jobId}
-            onChange={(e) => setJobId(e.target.value)}
-            className="max-w-[16rem] border border-term-line bg-term-panel px-1 py-0.5 text-term-fg"
-          >
-            <option value="all">all jobs</option>
-            {[...k.jobs].reverse().map((j) => (
-              <option key={j.id} value={j.id}>
-                {j.id}
-                {j.name ? ` ${j.name}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-      </nav>
+      </div>
 
-      <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section className="min-h-0 flex-1 overflow-auto p-3">
-          {tab === "Processes" && <ProcessTable processes={procs} now={now} onSelect={setInspect} />}
-          {tab === "Task Graph" && <TaskGraph processes={[...k.processes.values()].filter((p) => p.jobId === graphJob)} jobId={graphJob} onSelect={setInspect} />}
-          {tab === "IPC" && <IpcView messages={k.messages.filter((m) => jobId === "all" || m.jobId === jobId)} processes={procs} onSelect={setInspect} />}
-          {tab === "Sandboxes" && <SandboxesView processes={procs} provider={s?.sandbox ?? null} onSelect={setInspect} />}
-          {tab === "Traces" && <TracesView events={k.events} jobs={k.jobs} initialJob={graphJob} onSelect={setInspect} />}
-        </section>
-        <aside
-          className={`flex min-h-0 flex-col border-t border-term-line lg:border-t-0 lg:border-l ${tab === "Traces" ? "lg:w-[26%]" : "lg:w-[42%]"}`}
-        >
+      {/* Hero */}
+      <header className="mt-14 mb-10 grid gap-8 md:mt-20 lg:grid-cols-[1.5fr_1fr] lg:items-end">
+        <div>
+          <div className="label-caps mb-4">Agent kernel · live console</div>
+          <h1 className="text-5xl font-semibold leading-[1.02] tracking-tight md:text-6xl">
+            Agents, scheduled
+            <br />
+            like processes.
+          </h1>
+          <p className="mt-5 max-w-xl text-lg leading-relaxed text-term-dim">
+            Every agent gets a process, a budget, capabilities, and its own sandbox. Every step lands in an append-only log you can
+            replay.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <button onClick={() => setNewJob(true)} className="pill pill-light">
+              Run a job
+            </button>
+            <button onClick={() => setTab("Traces")} className="pill pill-ghost">
+              Replay a run
+            </button>
+          </div>
+        </div>
+        <div className="card grid grid-cols-2 gap-x-6 gap-y-4 p-5 text-sm">
+          <div>
+            <div className="label-caps">Model</div>
+            <div className="mt-1 truncate font-medium">{s ? `${s.provider} / ${s.model}` : "…"}</div>
+          </div>
+          <div>
+            <div className="label-caps">Sandbox</div>
+            <div className="mt-1 font-medium">{s?.sandbox ?? "…"}</div>
+          </div>
+          <div>
+            <div className="label-caps">Rate limit</div>
+            <div className="mt-1 font-medium">
+              {s ? `${Math.round(s.rateLimiter.requests * 100)}% req · ${Math.round(s.rateLimiter.tokens * 100)}% tok` : "…"}
+            </div>
+          </div>
+          <div>
+            <div className="label-caps">Event log</div>
+            <div className="mt-1 font-medium">seq {k.lastSequence}</div>
+          </div>
+        </div>
+      </header>
+
+      {/* Stats */}
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <Stat label="Uptime" value={<span className="font-mono">{s ? hhmmss(now - s.bootedAt) : "--:--:--"}</span>} />
+        <Stat label="Running" value={s ? `${s.running} / ${s.maxConcurrency}` : "…"} sub="slots in use" />
+        <Stat label="Queue" value={s?.queueDepth ?? "…"} sub="ready to dispatch" />
+        <Stat label="Processes" value={procs.length} sub={`${live} live`} />
+        <Stat label="Tokens" value={tokens.toLocaleString()} sub={jobId === "all" ? "all jobs" : "this job"} />
+        <Stat label="Cost" value={`$${cost.toFixed(4)}`} sub="estimated" />
+      </section>
+
+      {/* Workspace */}
+      <section className={`mt-4 grid gap-4 ${wide ? "" : "lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)]"}`}>
+        <div className="card flex min-h-[560px] min-w-0 flex-col">
+          <div className="flex flex-wrap items-end gap-4 border-b border-white/10 px-6 py-5">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xl font-semibold tracking-tight">{tab}</h2>
+              <p className="mt-1 text-sm text-term-dim">{TAB_BLURB[tab]}</p>
+            </div>
+            <label className="flex items-center gap-3">
+              <span className="label-caps">Job</span>
+              <select
+                value={jobId}
+                onChange={(e) => setJobId(e.target.value)}
+                className="max-w-[18rem] border border-white/15 bg-black/30 px-3 py-1.5 text-sm"
+              >
+                <option value="all">All jobs</option>
+                {[...k.jobs].reverse().map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.name ? `${j.name} · ` : ""}
+                    {j.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
+            {tab === "Processes" && <ProcessTable processes={procs} now={now} onSelect={setInspect} onNewJob={() => setNewJob(true)} />}
+            {tab === "Task Graph" && (
+              <TaskGraph processes={[...k.processes.values()].filter((p) => p.jobId === graphJob)} jobId={graphJob} onSelect={setInspect} />
+            )}
+            {tab === "IPC" && (
+              <IpcView messages={k.messages.filter((m) => jobId === "all" || m.jobId === jobId)} processes={procs} onSelect={setInspect} />
+            )}
+            {tab === "Sandboxes" && <SandboxesView processes={procs} provider={s?.sandbox ?? null} onSelect={setInspect} />}
+            {tab === "Traces" && <TracesView events={k.events} jobs={k.jobs} initialJob={graphJob} onSelect={setInspect} />}
+          </div>
+        </div>
+        <aside className={`card flex min-w-0 flex-col ${wide ? "h-[360px]" : "h-[560px] lg:h-auto lg:max-h-[80vh]"}`}>
           <EventStream events={events} onSelect={setInspect} />
         </aside>
-      </main>
+      </section>
+
+      <footer className="mt-10 flex flex-wrap justify-between gap-2 text-xs text-term-dim">
+        <span>KernelAgent · cooperative scheduler, capability-guarded syscalls, append-only event log</span>
+        <span>CPU* is runtime utilization, not real CPU</span>
+      </footer>
 
       {newJob && (
         <NewJob

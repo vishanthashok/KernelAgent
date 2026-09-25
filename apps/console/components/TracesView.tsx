@@ -3,15 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import type { KernelEvent } from "@kernelagent/kernel/types";
 import { replayProcesses } from "@kernelagent/kernel/replay";
 import type { JobInfo } from "@/lib/useKernel";
-import { clock, describe, STATE_COLOR } from "@/lib/format";
+import { clock, describe } from "@/lib/format";
+import { StateChip } from "./StateChip";
 
 type P = Record<string, any>;
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="mb-3">
-      <div className="mb-1 text-term-dim">{title}</div>
-      <div className="max-h-72 overflow-auto border border-term-line bg-term-panel p-2 whitespace-pre-wrap">{children}</div>
+    <div className="mb-4">
+      <div className="label-caps mb-2">{title}</div>
+      <div className="max-h-72 overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">{children}</div>
     </div>
   );
 }
@@ -111,16 +112,16 @@ export function TracesView({
   };
 
   return (
-    <div className="flex h-full flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-3">
-        <select value={jobId ?? ""} onChange={(e) => (setJobId(e.target.value), setCursor(undefined))} className="border border-term-line bg-term-panel px-1">
+    <div className="flex h-full flex-col gap-5">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+        <select value={jobId ?? ""} onChange={(e) => (setJobId(e.target.value), setCursor(undefined))} className="border border-white/15 bg-black/30 px-3 py-1.5 text-sm">
           {[...jobs].reverse().map((j) => (
             <option key={j.id} value={j.id}>
               {j.id} {j.name ?? ""}
             </option>
           ))}
         </select>
-        <select value={pid} onChange={(e) => (setPid(e.target.value), setCursor(undefined))} className="border border-term-line bg-term-panel px-1">
+        <select value={pid} onChange={(e) => (setPid(e.target.value), setCursor(undefined))} className="border border-white/15 bg-black/30 px-3 py-1.5 text-sm">
           <option value="all">all pids</option>
           {pids.map((p) => (
             <option key={p} value={p}>
@@ -128,20 +129,20 @@ export function TracesView({
             </option>
           ))}
         </select>
-        <span className="text-term-dim">rewind</span>
-        <button onClick={() => (setPlaying(false), setCursor(0))} className="px-1 hover:text-term-accent">|◀</button>
-        <button onClick={() => step(-1)} className="px-1 hover:text-term-accent">◀</button>
+        <span className="label-caps ml-2">Rewind</span>
+        <button onClick={() => (setPlaying(false), setCursor(0))} className="pill pill-ghost px-3 py-1 text-xs">|◀</button>
+        <button onClick={() => step(-1)} className="pill pill-ghost px-3 py-1 text-xs">◀</button>
         <button
           onClick={() => {
             if (idx >= visible.length - 1) setCursor(0);
             setPlaying((p) => !p);
           }}
-          className="w-12 px-1 hover:text-term-accent"
+          className="pill pill-light w-20 justify-center px-3 py-1 text-xs"
         >
-          {playing ? "pause" : "play"}
+          {playing ? "Pause" : "Play"}
         </button>
-        <button onClick={() => step(1)} className="px-1 hover:text-term-accent">▶</button>
-        <button onClick={() => (setPlaying(false), setCursor(undefined))} className="px-1 hover:text-term-accent">▶| live</button>
+        <button onClick={() => step(1)} className="pill pill-ghost px-3 py-1 text-xs">▶</button>
+        <button onClick={() => (setPlaying(false), setCursor(undefined))} className="pill pill-ghost px-3 py-1 text-xs">Live ▶|</button>
         <input
           type="range"
           min={0}
@@ -150,27 +151,27 @@ export function TracesView({
           onChange={(e) => (setPlaying(false), setCursor(Number(e.target.value)))}
           className="min-w-[12rem] flex-1"
         />
-        <span className="text-term-dim">
+        <span className="font-mono text-xs text-term-dim">
           seq {at?.sequence ?? "-"} ({idx + 1}/{visible.length})
         </span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 xl:flex-row">
-        <div className="max-h-[70vh] overflow-auto whitespace-pre xl:w-1/2">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 xl:flex-row">
+        <div className="max-h-[70vh] overflow-auto rounded-xl border border-white/10 bg-black/20 p-2 font-mono text-[12px] whitespace-pre xl:w-1/2">
           {visible.map((e, i) => (
             <div
               key={e.sequence}
               onClick={() => (setPlaying(false), setCursor(i))}
-              className={`cursor-pointer px-1 ${i === idx ? "bg-term-line text-term-fg" : i > idx ? "text-term-dim/50" : "text-term-dim hover:text-term-fg"}`}
+              className={`cursor-pointer rounded-md px-2 py-0.5 ${i === idx ? "bg-white/10 text-term-fg" : i > idx ? "text-term-dim/50" : "text-term-dim hover:text-term-fg"}`}
             >
               {String(e.sequence).padStart(5)} {clock(e.timestamp)} {e.pid ? `PID ${e.pid.padEnd(4)}` : "job     "} {e.type.padEnd(17)} {describe(e)}
             </div>
           ))}
         </div>
         <div className="min-w-0 xl:w-1/2">
-          <div className="mb-3">
-            <div className="mb-1 text-term-dim">KERNEL STATE AT SEQ {at?.sequence ?? "-"}</div>
-            <table className="whitespace-pre">
+          <div className="mb-5">
+            <div className="label-caps mb-2">Kernel state at seq {at?.sequence ?? "-"}</div>
+            <table className="w-full text-sm">
               <tbody>
                 {[...state.values()].map((p) => (
                   <tr key={p.pid}>
@@ -180,7 +181,7 @@ export function TracesView({
                       </button>
                     </td>
                     <td className="pr-3">{p.role}</td>
-                    <td className={`pr-3 ${STATE_COLOR[p.status as keyof typeof STATE_COLOR]}`}>{p.status}</td>
+                    <td className="py-1 pr-3"><StateChip status={p.status} /></td>
                     <td className="pr-3 text-right">{p.tokensUsed} tok</td>
                     <td className="text-term-dim">{p.result ? `→ ${String(p.result).slice(0, 40)}` : ""}</td>
                   </tr>

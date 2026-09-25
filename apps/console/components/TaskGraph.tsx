@@ -40,7 +40,7 @@ function layout(procs: ReplayedProcess[]) {
 }
 
 export function TaskGraph({ processes, jobId, onSelect }: { processes: ReplayedProcess[]; jobId?: string; onSelect: (pid: string) => void }) {
-  if (!jobId || processes.length === 0) return <p className="text-term-dim">no job selected</p>;
+  if (!jobId || processes.length === 0) return <p className="text-term-dim">Pick a job, or run one, to see its graph.</p>;
   const { pos, width, height } = layout(processes);
   const edges: { from: string; to: string; spawn: boolean }[] = [];
   for (const p of processes) {
@@ -50,13 +50,13 @@ export function TaskGraph({ processes, jobId, onSelect }: { processes: ReplayedP
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap gap-4 text-term-dim">
+      <div className="mb-5 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[11px] text-term-dim">
         <span>job {jobId}</span>
         <span>── depends on</span>
         <span>┄┄ spawned</span>
         {Object.entries(STATE_FILL).map(([s, c]) => (
           <span key={s} className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5" style={{ background: c }} />
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: c }} />
             {s}
           </span>
         ))}
@@ -91,7 +91,7 @@ export function TaskGraph({ processes, jobId, onSelect }: { processes: ReplayedP
             const { x, y } = pos.get(p.pid)!;
             return (
               <g key={p.pid} transform={`translate(${x},${y})`} className="cursor-pointer" onClick={() => onSelect(p.pid)}>
-                <rect width={W} height={H} rx={3} fill={STATE_FILL[p.status]} stroke={p.status === "RUNNING" ? "#7fd1b9" : "#22282b"} strokeWidth={p.status === "RUNNING" ? 2 : 1} />
+                <rect width={W} height={H} rx={12} fill={STATE_FILL[p.status]} stroke={p.status === "RUNNING" ? "#7fd1b9" : "#22282b"} strokeWidth={p.status === "RUNNING" ? 2 : 1} />
                 <text x={8} y={17} fill="#e6edef" fontSize={12}>
                   {p.pid} {p.role.slice(0, 14)}
                 </text>

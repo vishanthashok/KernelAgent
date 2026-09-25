@@ -3,18 +3,19 @@ import { useState } from "react";
 import type { KernelEvent } from "@kernelagent/kernel/types";
 import type { ReplayedProcess } from "@kernelagent/kernel/replay";
 import { api } from "@/lib/api";
-import { clock, cpuStar, describe, STATE_COLOR } from "@/lib/format";
+import { clock, cpuStar, describe } from "@/lib/format";
+import { StateChip } from "./StateChip";
 
 function Meter({ label, value, max, text }: { label: string; value: number; max: number; text: string }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <div className="mb-2">
-      <div className="flex justify-between text-term-dim">
+    <div className="mb-4">
+      <div className="mb-1.5 flex justify-between text-sm text-term-dim">
         <span>{label}</span>
         <span>{text}</span>
       </div>
-      <div className="h-1.5 bg-term-line">
-        <div className={`h-full ${pct > 90 ? "bg-red-400" : pct > 70 ? "bg-amber-300" : "bg-term-accent"}`} style={{ width: `${pct}%` }} />
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div className={`h-full ${pct > 90 ? "bg-red-400" : pct > 70 ? "bg-amber-300" : "bg-white"}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -47,53 +48,50 @@ export function Inspector({
   const cpu = cpuStar(p, now);
   const Row = ({ k, v }: { k: string; v: React.ReactNode }) => (
     <tr>
-      <td className="pr-4 align-top text-term-dim">{k}</td>
-      <td className="break-all">{v}</td>
+      <td className="label-caps whitespace-nowrap py-1.5 pr-6 align-top">{k}</td>
+      <td className="break-words py-1.5 text-sm">{v}</td>
     </tr>
   );
 
   return (
-    <div className="fixed inset-0 z-10 flex justify-end bg-black/50" onClick={onClose}>
-      <div className="flex h-full w-full max-w-2xl flex-col overflow-auto border-l border-term-line bg-term-bg p-4" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-baseline gap-3">
-          <span className="text-lg text-term-accent">PID {p.pid}</span>
-          <span>{p.role}</span>
-          <span className={STATE_COLOR[p.status]}>
-            {p.status}
-            {p.waitingOn ? ` (${p.waitingOn})` : ""}
-          </span>
-          <button onClick={onClose} className="ml-auto text-term-dim hover:text-term-fg">
-            [close]
+    <div className="fixed inset-0 z-20 flex justify-end bg-black/60 p-2 backdrop-blur-sm md:p-4" onClick={onClose}>
+      <div className="card flex h-full w-full max-w-2xl flex-col overflow-auto p-6" style={{ background: "#0f1318" }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-5 flex items-center gap-3">
+          <span className="label-caps">PID {p.pid}</span>
+          <span className="text-xl font-semibold tracking-tight">{p.role}</span>
+          <StateChip status={p.status} detail={p.error === "KILLED" ? "killed" : p.waitingOn?.toLowerCase()} />
+          <button onClick={onClose} className="pill pill-ghost ml-auto px-3 py-1 text-xs">
+            Close
           </button>
         </div>
 
-        <div className="mb-3 flex flex-wrap gap-2">
-          <button disabled={!live} onClick={() => act("kill", () => api.kill(p.pid))} className="border border-red-400/60 px-2 text-red-300 disabled:opacity-30">
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <button disabled={!live} onClick={() => act("kill", () => api.kill(p.pid))} className="pill border border-red-400/50 px-3 py-1 text-xs text-red-300 hover:bg-red-400/10 disabled:opacity-30">
             kill
           </button>
-          <button disabled={p.status !== "FAILED"} onClick={() => act("retry", () => api.signal(p.pid, "retry"))} className="border border-term-line px-2 disabled:opacity-30">
+          <button disabled={p.status !== "FAILED"} onClick={() => act("retry", () => api.signal(p.pid, "retry"))} className="pill pill-ghost px-3 py-1 text-xs disabled:opacity-30">
             retry
           </button>
-          <button disabled={p.status !== "WAITING"} onClick={() => act("resume", () => api.signal(p.pid, "resume"))} className="border border-term-line px-2 disabled:opacity-30">
+          <button disabled={p.status !== "WAITING"} onClick={() => act("resume", () => api.signal(p.pid, "resume"))} className="pill pill-ghost px-3 py-1 text-xs disabled:opacity-30">
             resume
           </button>
           {p.waitingOn === "APPROVAL" && (
             <>
-              <button onClick={() => act("approve", () => api.signal(p.pid, "approve"))} className="border border-emerald-400/60 px-2 text-emerald-300">
+              <button onClick={() => act("approve", () => api.signal(p.pid, "approve"))} className="pill pill-light px-3 py-1 text-xs">
                 approve
               </button>
-              <button onClick={() => act("deny", () => api.signal(p.pid, "deny"))} className="border border-amber-300/60 px-2 text-amber-200">
+              <button onClick={() => act("deny", () => api.signal(p.pid, "deny"))} className="pill border border-amber-300/50 px-3 py-1 text-xs text-amber-200 hover:bg-amber-300/10">
                 deny
               </button>
             </>
           )}
-          {msg && <span className="text-term-dim">{msg}</span>}
+          {msg && <span className="text-sm text-term-dim">{msg}</span>}
         </div>
 
         <Meter label="tokens" value={p.tokensUsed} max={p.tokenBudget} text={`${p.tokensUsed} / ${p.tokenBudget}`} />
         <Meter label="CPU* (runtime utilization, not real CPU)" value={cpu ?? 0} max={100} text={cpu === undefined ? "-" : `${cpu}%`} />
 
-        <table className="mb-3">
+        <table className="mb-6">
           <tbody>
             <Row k="goal" v={p.goal} />
             <Row k="cost" v={`$${p.costUsd.toFixed(5)} (estimated from the price table)`} />
@@ -110,7 +108,7 @@ export function Inspector({
               v={
                 p.capabilities.length
                   ? p.capabilities.map((c, i) => (
-                      <span key={i} className="mr-2 inline-block border border-term-line px-1">
+                      <span key={i} className="mr-1.5 mb-1 inline-block rounded-full bg-white/[0.06] px-2.5 py-0.5 font-mono text-[11px]">
                         {c.type}
                         {c.scope ? `(${c.scope})` : ""}
                         {c.requiresApproval ? " ⚑approval" : ""}
@@ -124,8 +122,8 @@ export function Inspector({
           </tbody>
         </table>
 
-        <div className="mb-1 text-term-dim">EVENT LOG ({mine.length})</div>
-        <div className="flex-1 overflow-auto border border-term-line bg-term-panel p-2 whitespace-pre">
+        <div className="label-caps mb-2">Event log · {mine.length}</div>
+        <div className="min-h-[200px] flex-1 overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-[12px] leading-relaxed whitespace-pre">
           {mine.map((e) => (
             <div key={e.sequence}>
               <span className="text-term-dim">

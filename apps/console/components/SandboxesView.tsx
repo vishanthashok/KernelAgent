@@ -1,43 +1,44 @@
 "use client";
 import type { ReplayedProcess } from "@kernelagent/kernel/replay";
-import { STATE_COLOR } from "@/lib/format";
+import { StateChip } from "./StateChip";
 
 export function SandboxesView({ processes, provider, onSelect }: { processes: ReplayedProcess[]; provider: string | null; onSelect: (pid: string) => void }) {
   const rows = processes.filter((p) => p.sandboxId).sort((a, b) => Number(b.pid) - Number(a.pid));
   const live = (p: ReplayedProcess) => p.status !== "TERMINATED" && p.status !== "FAILED";
   return (
     <div>
-      <p className="mb-2 text-term-dim">
-        provider: {provider ?? "none"}
-        {provider === "local" ? "  (LocalSandbox is a temp directory on the host: development only, not a security boundary)" : ""}
-      </p>
-      <table className="whitespace-pre">
-        <thead className="text-term-dim">
-          <tr>
-            {["SANDBOX", "STATUS", "OWNER", "ROLE", "PROCESS STATE"].map((h) => (
-              <th key={h} className="px-2 text-left font-normal">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <span className="rounded-full bg-white/[0.06] px-3 py-1 font-mono text-xs">provider: {provider ?? "none"}</span>
+        {provider === "local" && (
+          <span className="text-sm text-amber-200">LocalSandbox is a temp folder on the host. Development only, not a security boundary.</span>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-term-dim">No sandboxes yet. Agents with file or command permissions get one when they start.</p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((p) => (
-            <tr key={p.pid} className="border-t border-term-line/50">
-              <td className="px-2">{p.sandboxId}</td>
-              <td className={`px-2 ${live(p) ? "text-emerald-400" : "text-term-dim"}`}>{live(p) ? "active" : "destroyed"}</td>
-              <td className="px-2">
-                <button className="text-term-accent hover:underline" onClick={() => onSelect(p.pid)}>
-                  PID {p.pid}
-                </button>
-              </td>
-              <td className="px-2">{p.role}</td>
-              <td className={`px-2 ${STATE_COLOR[p.status]}`}>{p.status}</td>
-            </tr>
+            <button
+              key={p.pid}
+              onClick={() => onSelect(p.pid)}
+              className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 text-left transition-colors hover:border-white/20"
+            >
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${live(p) ? "bg-emerald-400" : "bg-zinc-600"}`} />
+                <span className="font-mono text-xs text-term-dim">{live(p) ? "active" : "destroyed"}</span>
+              </div>
+              <div className="mt-3 truncate font-mono text-sm">{p.sandboxId}</div>
+              <div className="mt-3 flex items-center gap-2 text-sm">
+                <span className="font-mono text-term-accent">{p.pid}</span>
+                <span className="font-medium">{p.role}</span>
+                <span className="ml-auto">
+                  <StateChip status={p.status} />
+                </span>
+              </div>
+            </button>
           ))}
-        </tbody>
-      </table>
-      {rows.length === 0 && <p className="text-term-dim">no sandboxes have been used yet</p>}
+        </div>
+      )}
     </div>
   );
 }

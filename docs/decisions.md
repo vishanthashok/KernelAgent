@@ -90,3 +90,7 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **The `retry` signal** re-queues a permanently FAILED process and sets its job back to RUNNING. Dependents already failed with `DEPENDENCY_FAILED` stay failed.
 - **A third job file, `examples/approval-gate.json`,** reuses the coding-task script with `EXEC` behind the approval gate. `pnpm demo` submits it to show the gate. It is a demo aid, not a third workload.
 - **`pnpm demo`** turns OpenTelemetry off by default so the console exporter does not flood the terminal. Set `OTEL_SDK_DISABLED=false` to keep it on.
+
+## Console design
+
+- **Portfolio-style dashboard.** The console matches the owner's portfolio: a floating light pill nav with spaced mono labels, a large Manrope headline, white and outline pill buttons, and glass cards on a dark dusk gradient. Fonts load through `next/font/google` (Manrope for text, JetBrains Mono for data). Shared styles live as Tailwind utilities in `apps/console/app/globals.css` (`card`, `label-caps`, `pill`, `pill-light`, `pill-dark`, `pill-ghost`), and process states render with `components/StateChip.tsx`.

@@ -1,27 +1,97 @@
 @import "tailwindcss";
 
 @theme {
-  --font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
-  --color-term-bg: #0b0d0e;
-  --color-term-panel: #111416;
-  --color-term-line: #22282b;
-  --color-term-fg: #c9d1d3;
-  --color-term-dim: #6b777c;
-  --color-term-accent: #7fd1b9;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --color-term-bg: #0b0e12;
+  --color-term-panel: #131820;
+  --color-term-line: #252c36;
+  --color-term-fg: #e8edf2;
+  --color-term-dim: #8a96a3;
+  --color-term-accent: #b9d4ff;
 }
 
 html,
 body {
   background: var(--color-term-bg);
   color: var(--color-term-fg);
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+/* Dusk sky behind everything: cool blue top left, faint warm light top right. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(900px 500px at 15% -10%, rgba(88, 130, 190, 0.28), transparent 60%),
+    radial-gradient(700px 400px at 90% -5%, rgba(214, 170, 130, 0.14), transparent 60%),
+    radial-gradient(1200px 700px at 50% 120%, rgba(40, 70, 60, 0.35), transparent 60%),
+    var(--color-term-bg);
 }
 
 ::selection {
-  background: #2c4b43;
+  background: #35507a;
 }
 
-input[type="range"] {
-  accent-color: var(--color-term-accent);
+input[type="range"],
+input[type="checkbox"] {
+  accent-color: #ffffff;
+}
+
+select,
+input,
+textarea {
+  border-radius: 10px;
+}
+
+@utility card {
+  border-radius: 20px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.035);
+  backdrop-filter: blur(14px);
+}
+
+@utility label-caps {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-term-dim);
+}
+
+@utility pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 9999px;
+  padding: 0.45rem 1.1rem;
+  font-weight: 500;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+
+@utility pill-light {
+  background: #ffffff;
+  color: #0b0e12;
+  &:hover {
+    background: #e6ebf1;
+  }
+}
+
+@utility pill-dark {
+  background: #0b0e12;
+  color: #ffffff;
+  &:hover {
+    background: #262d36;
+  }
+}
+
+@utility pill-ghost {
+  border: 1px solid rgb(255 255 255 / 0.35);
+  color: #ffffff;
+  &:hover {
+    background: rgb(255 255 255 / 0.08);
+  }
 }
