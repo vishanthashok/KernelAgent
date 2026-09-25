@@ -88,6 +88,7 @@ describe("process routes", () => {
     const { kernel } = makeKernel();
     app = await buildServer(kernel, { devToken: "s3cret" });
     expect((await app.inject({ method: "GET", url: "/jobs" })).statusCode).toBe(401);
+    expect((await app.inject({ method: "GET", url: "/health" })).statusCode).toBe(200);
     expect((await app.inject({ method: "GET", url: "/jobs", headers: { authorization: "Bearer s3cret" } })).statusCode).toBe(200);
   });
 });

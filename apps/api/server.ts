@@ -22,6 +22,8 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
 
   if (opts.devToken) {
     app.addHook("onRequest", async (req, reply) => {
+      // /health stays public so uptime checks and browsers can probe it.
+      if (req.url === "/health") return;
       const q = req.query as Record<string, string | undefined>;
       const ok = req.headers.authorization === `Bearer ${opts.devToken}` || q.token === opts.devToken;
       if (!ok) return reply.code(401).send({ error: "unauthorized" });
