@@ -16,6 +16,9 @@ export const FALLBACK_ANTHROPIC_MODELS: ModelInfo[] = [
 
 const MODEL_LIST_TTL_MS = 10 * 60_000;
 
+/** Models that accept output_config.effort. Others (Haiku 4.5, older Sonnets) reject it with a 400. */
+export const EFFORT_MODELS = /^claude-(fable|mythos|opus-5|opus-4-[5-8]|sonnet-5|sonnet-4-6)/;
+
 const MAX_USER_CLIENTS = 100;
 
 export class AnthropicClient implements ModelClient {
@@ -80,10 +83,15 @@ export class AnthropicClient implements ModelClient {
   }
 
   async complete(req: CompletionRequest, opts: CompleteOptions = {}): Promise<CompletionResponse> {
+    const model = opts.model || this.model;
     const response = await this.clientFor(opts.apiKey).messages.create(
       {
-        model: opts.model || this.model,
+        model,
         max_tokens: this.maxTokens,
+        // Cache the whole prefix (tools, system, history). Each agent turn then reads the
+        // previous turn's prefix from cache at a tenth of the input price.
+        cache_control: { type: "ephemeral" },
+        ...(opts.effort && EFFORT_MODELS.test(model) ? { output_config: { effort: opts.effort } } : {}),
         system: req.system,
         messages: req.messages.map(toParam),
         tools: req.tools.map((t) => ({
@@ -106,10 +114,15 @@ export class AnthropicClient implements ModelClient {
       return { type: "opaque", provider: "anthropic", block: b };
     });
 
+    // usage.input_tokens counts only uncached input. Report the total and the cached parts.
+    const cacheRead = response.usage.cache_read_input_tokens ?? 0;
+    const cacheWrite = response.usage.cache_creation_input_tokens ?? 0;
     return {
       content,
-      inputTokens: response.usage.input_tokens,
+      inputTokens: response.usage.input_tokens + cacheRead + cacheWrite,
       outputTokens: response.usage.output_tokens,
+      cacheReadTokens: cacheRead,
+      cacheWriteTokens: cacheWrite,
       raw: response,
     };
   }

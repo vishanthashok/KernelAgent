@@ -2,9 +2,9 @@
 // event bus, and (from Phase 2) the syscall dispatcher, sandbox, and IPC.
 // Execution itself lives in @kernelagent/runtime, attached as a ProcessRunner.
 import { randomUUID } from "node:crypto";
-import { createRepositories, type Repositories } from "@kernelagent/db";
+import { createRepositories, type MemoryEntry, type Repositories } from "@kernelagent/db";
 import { Channel, Mailbox } from "@kernelagent/ipc";
-import { estimateTokens, type CompletionRequest, type CompletionResponse, type ModelClient } from "@kernelagent/llm";
+import { estimateTokens, type CompletionRequest, type CompletionResponse, type Effort, type ModelClient } from "@kernelagent/llm";
 import type { SandboxAdapter } from "@kernelagent/sandbox";
 import { context, registerKernelMetrics, startSpan, withSpan, type Context, type KernelMetrics, type Span } from "@kernelagent/telemetry";
 import { CapabilityManager } from "./capabilities.ts";
@@ -22,6 +22,11 @@ export interface ResumeState {
   checkpointSeq: number;
   context: unknown;
 }
+
+/** Most characters of chat memory put in a process's system prompt. RECALL reaches the rest. */
+export const MEMORY_PROMPT_CHARS = 6000;
+
+const clipText = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /**
  * A handle for one execution attempt of a process. Every kernel call from a runner passes
@@ -328,6 +333,59 @@ export class Kernel {
     return !!r && r.generation === h.generation && !h.signal.aborted;
   }
 
+  // ------------------------------------------------------------- memory
+
+  /** The memory scope of a job, if its spec set one. */
+  memoryScope(jobId: string): string | undefined {
+    return (this.jobs.get(jobId) ?? this.getJob(jobId))?.spec.memoryScope;
+  }
+
+  private requireScope(pid: string): { proc: Process; scope: string } {
+    const proc = this.pm.require(pid);
+    const scope = this.memoryScope(proc.jobId);
+    if (!scope) throw new Error("this job has no chat memory (its spec sets no memoryScope)");
+    return { proc, scope };
+  }
+
+  /** Save a note to the process's chat memory. Backs the REMEMBER syscall. */
+  remember(pid: string, note: string): MemoryEntry {
+    const { proc, scope } = this.requireScope(pid);
+    return this.repos.memories.add({ scope, jobId: proc.jobId, pid, kind: "note", content: note, createdAt: this.now() });
+  }
+
+  /** Search the process's chat memory. Backs the RECALL syscall. */
+  recall(pid: string, query: string, limit: number): MemoryEntry[] {
+    const { scope } = this.requireScope(pid);
+    return query.trim() ? this.repos.memories.search(scope, query, limit) : this.repos.memories.recent(scope, limit).reverse();
+  }
+
+  /**
+   * Memory to show a process at start: the newest entries that fit in MEMORY_PROMPT_CHARS,
+   * oldest first. Built once per process so the system prompt stays cacheable.
+   */
+  memoryContext(jobId: string): MemoryEntry[] {
+    const scope = this.memoryScope(jobId);
+    if (!scope) return [];
+    const picked: MemoryEntry[] = [];
+    let used = 0;
+    for (const m of this.repos.memories.recent(scope, 200).reverse()) {
+      if (used + m.content.length > MEMORY_PROMPT_CHARS) break;
+      picked.push(m);
+      used += m.content.length;
+    }
+    return picked.reverse();
+  }
+
+  /**
+   * Reasoning effort for a process. Processes the job spec lists use the spec's effort.
+   * Spawned sub-agents use subagentEffort, "low" by default, since their tasks are narrow.
+   */
+  effortFor(proc: Pick<Process, "jobId" | "parentPid">): Effort | undefined {
+    const spec = (this.jobs.get(proc.jobId) ?? this.getJob(proc.jobId))?.spec;
+    if (!spec) return undefined;
+    return proc.parentPid ? (spec.subagentEffort ?? "low") : spec.effort;
+  }
+
   /** The model a job runs on: the one its spec picked, else the client's default. */
   modelFor(jobId: string): string {
     return (this.jobs.get(jobId) ?? this.getJob(jobId))?.spec.model ?? this.llm.model;
@@ -371,15 +429,18 @@ export class Kernel {
       "llm.call",
       { "kernel.pid": proc.pid, "llm.provider": this.llm.provider, "llm.model": model },
       async (span) => {
-        const r = await this.llm.complete(fullReq, { signal: h.signal, model, ...(apiKey ? { apiKey } : {}) });
+        const effort = this.effortFor(proc);
+        const r = await this.llm.complete(fullReq, { signal: h.signal, model, ...(apiKey ? { apiKey } : {}), ...(effort ? { effort } : {}) });
         span.setAttributes({ "llm.input_tokens": r.inputTokens, "llm.output_tokens": r.outputTokens });
         return r;
       },
     );
     this.assertLive(h);
     const attrs = { provider: this.llm.provider, model, role: proc.role };
+    const cache = { read: res.cacheReadTokens ?? 0, write: res.cacheWriteTokens ?? 0 };
+    const cost = costUsd(model, res.inputTokens, res.outputTokens, cache);
     this.metrics.tokens(res.inputTokens + res.outputTokens, attrs);
-    this.metrics.cost(costUsd(model, res.inputTokens, res.outputTokens), attrs);
+    this.metrics.cost(cost, attrs);
     limiter.reconcile(estimate, res.inputTokens + res.outputTokens);
 
     this.bus.emit("LLM_CALL", proc.jobId, proc.pid, {
@@ -389,12 +450,14 @@ export class Kernel {
       response: { content: res.content, raw: res.raw },
       inputTokens: res.inputTokens,
       outputTokens: res.outputTokens,
-      costUsd: costUsd(model, res.inputTokens, res.outputTokens),
+      cacheReadTokens: cache.read,
+      cacheWriteTokens: cache.write,
+      costUsd: cost,
       durationMs: this.now() - started,
       ...(proc.sandboxId ? { sandboxId: proc.sandboxId } : {}),
     });
 
-    const violation = this.resources.charge(h.pid, model, res.inputTokens, res.outputTokens);
+    const violation = this.resources.charge(h.pid, model, res.inputTokens, res.outputTokens, cache);
     if (violation) {
       this.failRun(h, violation, `${violation}: used ${this.pm.require(h.pid).tokensUsed} tokens`);
       throw new BudgetExceededError(violation);
@@ -406,6 +469,19 @@ export class Kernel {
   exit(h: RunHandle, result: string): void {
     this.assertLive(h);
     const p = this.pm.update(h.pid, { result });
+    // A top-level process's request and answer become chat memory, so the next message
+    // in the chat has the context without resending the transcript.
+    const scope = p.parentPid ? undefined : this.memoryScope(p.jobId);
+    if (scope) {
+      this.repos.memories.add({
+        scope,
+        jobId: p.jobId,
+        pid: p.pid,
+        kind: "turn",
+        content: `User asked: ${clipText(p.goal, 500)}\nAnswer: ${clipText(result, 1500)}`,
+        createdAt: this.now(),
+      });
+    }
     this.endRun(h.pid);
     this.bus.emit("PROCESS_EXIT", p.jobId, p.pid, { result, tokensUsed: p.tokensUsed, costUsd: p.costUsd });
     this.pm.transition(h.pid, "TERMINATED", { reason: "EXIT" });

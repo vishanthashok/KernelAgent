@@ -13,13 +13,40 @@ export interface ContextSnapshot {
   checkpointSeq?: number;
 }
 
+/** Peer goals are for addressing, not doing. Long ones would repeat in every peer's prompt. */
+const PEER_GOAL_CHARS = 200;
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
 function describeCap(c: Capability): string {
   return `${c.type}${c.scope ? `(${c.scope})` : ""}${c.requiresApproval ? " [needs operator approval]" : ""}`;
 }
 
-export function systemPrompt(p: Process, peers: Pick<Process, "pid" | "role" | "goal">[] = []): string {
+/** Chat memory shown to a process: shared notes and earlier requests with their answers. */
+export interface MemoryView {
+  entries: { kind: string; content: string }[];
+  /** The process holds MEMORY and can call REMEMBER and RECALL. */
+  canWrite: boolean;
+}
+
+function memorySection(m: MemoryView | undefined): string[] {
+  if (!m || (!m.canWrite && m.entries.length === 0)) return [];
+  const lines = m.entries.map((e) => `- [${e.kind}] ${e.content.replace(/\n/g, "\n  ")}`);
+  return [
+    ``,
+    `Chat memory, shared by every agent in this chat and kept across messages (oldest first):`,
+    ...(lines.length ? lines : [`- (empty)`]),
+    ...(m.canWrite
+      ? [
+          `Use REMEMBER to save facts, decisions, and results that later messages or other agents need. Keep notes short.`,
+          `Use RECALL to search older memory that is not shown here.`,
+        ]
+      : []),
+  ];
+}
+
+export function systemPrompt(p: Process, peers: Pick<Process, "pid" | "role" | "goal">[] = [], memory?: MemoryView): string {
   const caps = p.capabilities.length ? p.capabilities.map(describeCap).join(", ") : "none";
-  const peerLines = peers.map((q) => `  - pid ${q.pid} (${q.role}): ${q.goal}`);
+  const peerLines = peers.map((q) => `  - pid ${q.pid} (${q.role}): ${clip(q.goal, PEER_GOAL_CHARS)}`);
   return [
     `You are process ${p.pid}, a "${p.role}" agent running inside KernelAgent, an operating-system-style kernel for AI agents.`,
     `Your only way to affect the world is the syscall tools you are given. Each call is checked against your capabilities.`,
@@ -37,6 +64,7 @@ export function systemPrompt(p: Process, peers: Pick<Process, "pid" | "role" | "
     `- To hand files to the user (a report, PDF, image, CSV), save them under /output/ in your sandbox.`,
     `  Everything in /output/ is kept and offered for download after you exit. Other files are deleted.`,
     `- When the goal is done, call EXIT with your answer.`,
+    ...memorySection(memory),
   ].join("\n");
 }
 
@@ -46,12 +74,12 @@ export class ProcessContext {
     readonly messages: Message[],
   ) {}
 
-  static fresh(p: Process, peers: Process[] = []): ProcessContext {
-    return new ProcessContext(systemPrompt(p, peers), [{ role: "user", content: `Your goal: ${p.goal}` }]);
+  static fresh(p: Process, peers: Process[] = [], memory?: MemoryView): ProcessContext {
+    return new ProcessContext(systemPrompt(p, peers, memory), [{ role: "user", content: `Your goal: ${p.goal}` }]);
   }
 
   /** Rebuild a context from a checkpoint snapshot, closing out the interrupted turn. */
-  static restore(p: Process, snap: ContextSnapshot, checkpointSeq: number, peers: Process[] = []): ProcessContext {
+  static restore(p: Process, snap: ContextSnapshot, checkpointSeq: number, peers: Process[] = [], memory?: MemoryView): ProcessContext {
     const messages = structuredClone(snap.messages);
     const last = messages[messages.length - 1];
     const results: ToolResultBlock[] = [...snap.partialResults];
@@ -72,7 +100,7 @@ export class ProcessContext {
       }
     }
     if (results.length) messages.push({ role: "user", content: results });
-    return new ProcessContext(systemPrompt(p, peers), messages);
+    return new ProcessContext(systemPrompt(p, peers, memory), messages);
   }
 
   snapshot(checkpointToolUseId: string, partialResults: ToolResultBlock[]): ContextSnapshot {

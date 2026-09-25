@@ -79,6 +79,23 @@ export const ExitSchema = z.object({
   args: z.object({ result: z.string().max(100_000).describe("Final result of your task") }),
 });
 
+export const RememberSchema = z.object({
+  type: z.literal("REMEMBER"),
+  args: z.object({
+    note: z.string().min(1).max(2000).describe("A fact, decision, or result later turns and other agents in this chat should know"),
+  }),
+});
+
+export const RecallSchema = z.object({
+  type: z.literal("RECALL"),
+  args: z
+    .object({
+      query: z.string().max(200).optional().describe("Words to search for. Omit for the newest entries."),
+      limit: z.number().int().min(1).max(20).optional().describe("Most entries to return. Default 10."),
+    })
+    .default({}),
+});
+
 export const SyscallRequestSchema = z.discriminatedUnion("type", [
   FsReadSchema,
   FsWriteSchema,
@@ -89,6 +106,8 @@ export const SyscallRequestSchema = z.discriminatedUnion("type", [
   SleepSchema,
   CheckpointSchema,
   ExitSchema,
+  RememberSchema,
+  RecallSchema,
 ]);
 
 export type SyscallRequest = z.infer<typeof SyscallRequestSchema>;
@@ -223,6 +242,26 @@ export const SYSCALLS: Registry = {
     args: CheckpointSchema.shape.args,
     retrySafety: "SAFE",
     handler: async (k, h, a, ctx) => k.checkpoint(h, ctx.snapshot?.() ?? null, a.note),
+  },
+  REMEMBER: {
+    description: "Save a note to this chat's shared memory. Every agent in the chat and every later message can see it.",
+    args: RememberSchema.shape.args,
+    retrySafety: "EFFECTFUL",
+    capability: () => ({ type: "MEMORY" }),
+    handler: async (k, h, a) => {
+      const m = k.remember(h.pid, a.note);
+      return { id: m.id, saved: true };
+    },
+  },
+  RECALL: {
+    description: "Search this chat's shared memory. Your prompt already shows the newest entries; use this for older ones.",
+    args: RecallSchema.shape.args,
+    retrySafety: "SAFE",
+    capability: () => ({ type: "MEMORY" }),
+    handler: async (k, h, a) => {
+      const entries = k.recall(h.pid, a.query ?? "", a.limit ?? 10);
+      return { entries: entries.map((m) => ({ id: m.id, kind: m.kind, content: m.content })) };
+    },
   },
   EXIT: {
     description: "Finish your task and terminate with a result.",

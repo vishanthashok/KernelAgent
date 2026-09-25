@@ -52,8 +52,13 @@ export interface CompletionRequest {
 
 export interface CompletionResponse {
   content: ContentBlock[];
+  /** All input tokens, including any read from or written to the prompt cache. */
   inputTokens: number;
   outputTokens: number;
+  /** Input tokens served from the prompt cache. */
+  cacheReadTokens?: number;
+  /** Input tokens written to the prompt cache. */
+  cacheWriteTokens?: number;
   raw: unknown;
 }
 
@@ -68,7 +73,11 @@ export interface CompleteOptions {
   model?: string;
   /** A user's own provider key for this call, instead of the server's. */
   apiKey?: string;
+  /** Reasoning effort. Clients drop it for models that do not support it. */
+  effort?: Effort;
 }
+
+export type Effort = "low" | "medium" | "high";
 
 export interface ModelClient {
   readonly provider: string;

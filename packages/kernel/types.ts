@@ -15,7 +15,8 @@ export type CapabilityType =
   | "SPAWN"
   | "NET"
   | "SEND"
-  | "RECEIVE";
+  | "RECEIVE"
+  | "MEMORY";
 
 export interface Capability {
   type: CapabilityType;

@@ -189,6 +189,28 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
 
   // -------------------------------------------------------------- events
 
+  // ---------------------------------------------------------------- memory
+
+  const SCOPE = /^[A-Za-z0-9_-]{1,100}$/;
+
+  app.get<{ Querystring: { scope?: string; limit?: string } }>("/memory", async (req, reply) => {
+    const scope = req.query.scope ?? "";
+    if (!SCOPE.test(scope)) return reply.code(400).send({ error: "scope is required: 1-100 letters, digits, _ or -" });
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit ?? 100) || 100));
+    return { scope, count: kernel.repos.memories.count(scope), entries: kernel.repos.memories.recent(scope, limit) };
+  });
+
+  app.delete<{ Params: { id: string } }>("/memory/:id", async (req, reply) => {
+    if (!kernel.repos.memories.delete(Number(req.params.id))) return reply.code(404).send({ error: "no such memory entry" });
+    return { deleted: Number(req.params.id) };
+  });
+
+  app.delete<{ Querystring: { scope?: string } }>("/memory", async (req, reply) => {
+    const scope = req.query.scope ?? "";
+    if (!SCOPE.test(scope)) return reply.code(400).send({ error: "scope is required" });
+    return { cleared: kernel.repos.memories.clear(scope) };
+  });
+
   app.get<{ Querystring: { sinceSeq?: string; jobId?: string; pid?: string; limit?: string } }>("/events", async (req) => {
     const sinceSeq = num(req.query.sinceSeq, 0);
     const limit = Math.min(Math.max(num(req.query.limit, 500), 1), 5000);

@@ -6,7 +6,7 @@
 // Turn and syscall boundaries are the yield points where the scheduler regains control.
 import type { ContentBlock, ToolResultBlock, ToolUseBlock } from "@kernelagent/llm";
 import { syscallTools, type Kernel, type RunHandle, type SyscallType } from "@kernelagent/kernel";
-import { ProcessContext, type ContextSnapshot } from "./context.ts";
+import { ProcessContext, type ContextSnapshot, type MemoryView } from "./context.ts";
 
 export interface ExecutionLoopOptions {
   maxTurns?: number;
@@ -14,19 +14,28 @@ export interface ExecutionLoopOptions {
 
 // Syscalls every process may call. The rest are exposed only if a capability allows them.
 const ALWAYS: ReadonlySet<SyscallType> = new Set(["SLEEP", "CHECKPOINT", "EXIT"]);
+// Syscalls whose capability has a different name.
+const NEEDS: Partial<Record<SyscallType, string>> = { REMEMBER: "MEMORY", RECALL: "MEMORY" };
 
 export async function runExecutionLoop(kernel: Kernel, h: RunHandle, opts: ExecutionLoopOptions = {}): Promise<void> {
   const maxTurns = opts.maxTurns ?? 40;
   const proc = kernel.pm.require(h.pid);
-  const held = new Set(proc.capabilities.map((c) => c.type));
-  const tools = syscallTools((t) => ALWAYS.has(t) || held.has(t as never));
+  const held = new Set<string>(proc.capabilities.map((c) => c.type));
+  // Memory tools only make sense when the job has a memory to use.
+  const hasMemory = kernel.memoryScope(proc.jobId) !== undefined;
+  if (!hasMemory) held.delete("MEMORY");
+  // The tool list is fixed per process: a changing list would break the prompt cache.
+  const tools = syscallTools((t) => ALWAYS.has(t) || held.has(NEEDS[t] ?? t));
 
-  // Peers are fixed at start so the system prompt stays byte-stable across turns.
+  // Peers and memory are fixed at start so the system prompt stays byte-stable across turns.
   const peers = kernel.pm.list({ jobId: proc.jobId }).filter((p) => p.pid !== proc.pid);
+  const memory: MemoryView | undefined = hasMemory
+    ? { entries: kernel.memoryContext(proc.jobId), canWrite: held.has("MEMORY") }
+    : undefined;
   const ctx =
     h.resume && h.resume.context
-      ? ProcessContext.restore(proc, h.resume.context as ContextSnapshot, h.resume.checkpointSeq, peers)
-      : ProcessContext.fresh(proc, peers);
+      ? ProcessContext.restore(proc, h.resume.context as ContextSnapshot, h.resume.checkpointSeq, peers, memory)
+      : ProcessContext.fresh(proc, peers, memory);
 
   for (let turn = 0; turn < maxTurns; turn++) {
     const res = await kernel.callModel(h, { system: ctx.system, messages: ctx.messages, tools });
@@ -51,7 +60,9 @@ export async function runExecutionLoop(kernel: Kernel, h: RunHandle, opts: Execu
       results.push({
         type: "tool_result",
         tool_use_id: u.id,
-        content: r.ok ? (typeof r.value === "string" ? r.value : JSON.stringify(r.value)) : JSON.stringify({ error: r.error, code: r.code }),
+        content: capToolResult(
+          r.ok ? (typeof r.value === "string" ? r.value : JSON.stringify(r.value)) : JSON.stringify({ error: r.error, code: r.code }),
+        ),
         ...(r.ok ? {} : { is_error: true }),
       });
     }
@@ -63,6 +74,21 @@ export async function runExecutionLoop(kernel: Kernel, h: RunHandle, opts: Execu
     }
   }
   throw new Error(`MAX_TURNS: no EXIT after ${maxTurns} turns`);
+}
+
+/** Longest tool result the model sees. The SYSCALL event keeps the full value. */
+export const MAX_TOOL_RESULT_CHARS = 16_000;
+
+/**
+ * Trim a tool result to MAX_TOOL_RESULT_CHARS, keeping the head and tail. Every later turn
+ * resends it, so one large command output would otherwise be paid for on every call.
+ */
+export function capToolResult(s: string, max = MAX_TOOL_RESULT_CHARS): string {
+  if (s.length <= max) return s;
+  const keep = max - 80;
+  const head = s.slice(0, Math.ceil(keep * 0.75));
+  const tail = s.slice(s.length - Math.floor(keep * 0.25));
+  return `${head}\n[... truncated ${s.length - head.length - tail.length} chars ...]\n${tail}`;
 }
 
 function textOf(content: ContentBlock[]): string {

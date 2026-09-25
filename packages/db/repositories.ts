@@ -427,6 +427,78 @@ export class ArtifactRepo {
   }
 }
 
+/** "note" is written by an agent with REMEMBER. "turn" is the kernel's record of a finished request. */
+export type MemoryKind = "note" | "turn";
+
+export interface MemoryEntry {
+  id: number;
+  scope: string;
+  jobId: string;
+  pid?: string;
+  kind: MemoryKind;
+  content: string;
+  createdAt: number;
+}
+
+interface MemoryRow {
+  id: number;
+  scope: string;
+  job_id: string;
+  pid: string | null;
+  kind: MemoryKind;
+  content: string;
+  created_at: number;
+}
+
+const toMemory = (r: MemoryRow): MemoryEntry => ({
+  id: r.id,
+  scope: r.scope,
+  jobId: r.job_id,
+  ...(r.pid ? { pid: r.pid } : {}),
+  kind: r.kind,
+  content: r.content,
+  createdAt: r.created_at,
+});
+
+export class MemoryRepo {
+  constructor(private db: DB) {}
+
+  add(m: Omit<MemoryEntry, "id">): MemoryEntry {
+    const info = this.db
+      .prepare("INSERT INTO memories (scope, job_id, pid, kind, content, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(m.scope, m.jobId, m.pid ?? null, m.kind, m.content, m.createdAt);
+    return { ...m, id: Number(info.lastInsertRowid) };
+  }
+
+  /** The newest entries of a scope, returned oldest first. */
+  recent(scope: string, limit = 50): MemoryEntry[] {
+    const rows = this.db.prepare("SELECT * FROM memories WHERE scope = ? ORDER BY id DESC LIMIT ?").all(scope, limit) as MemoryRow[];
+    return rows.reverse().map(toMemory);
+  }
+
+  /** Entries containing every word of the query (case-insensitive), newest first. */
+  search(scope: string, query: string, limit = 10): MemoryEntry[] {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
+    const where = words.map((_, i) => `AND lower(content) LIKE @w${i} ESCAPE '\\'`).join(" ");
+    const params: Record<string, unknown> = { scope, limit };
+    words.forEach((w, i) => (params[`w${i}`] = `%${w.replace(/[\\%_]/g, (c) => "\\" + c)}%`));
+    const rows = this.db.prepare(`SELECT * FROM memories WHERE scope = @scope ${where} ORDER BY id DESC LIMIT @limit`).all(params) as MemoryRow[];
+    return rows.map(toMemory);
+  }
+
+  count(scope: string): number {
+    return (this.db.prepare("SELECT COUNT(*) AS n FROM memories WHERE scope = ?").get(scope) as { n: number }).n;
+  }
+
+  delete(id: number): boolean {
+    return this.db.prepare("DELETE FROM memories WHERE id = ?").run(id).changes > 0;
+  }
+
+  clear(scope: string): number {
+    return this.db.prepare("DELETE FROM memories WHERE scope = ?").run(scope).changes;
+  }
+}
+
 export interface Repositories {
   db: DB;
   events: EventRepo;
@@ -434,6 +506,7 @@ export interface Repositories {
   processes: ProcessRepo;
   messages: MessageRepo;
   artifacts: ArtifactRepo;
+  memories: MemoryRepo;
 }
 
 export function createRepositories(path = ":memory:"): Repositories {
@@ -445,5 +518,6 @@ export function createRepositories(path = ":memory:"): Repositories {
     processes: new ProcessRepo(db),
     messages: new MessageRepo(db),
     artifacts: new ArtifactRepo(db),
+    memories: new MemoryRepo(db),
   };
 }

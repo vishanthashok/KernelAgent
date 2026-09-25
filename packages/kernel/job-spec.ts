@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const CapabilitySchema = z.object({
-  type: z.enum(["FS_READ", "FS_WRITE", "EXEC", "SPAWN", "NET", "SEND", "RECEIVE"]),
+  type: z.enum(["FS_READ", "FS_WRITE", "EXEC", "SPAWN", "NET", "SEND", "RECEIVE", "MEMORY"]),
   scope: z.string().optional(),
   requiresApproval: z.boolean().optional(),
 });
@@ -21,20 +21,25 @@ export const ProcessSpecSchema = z.object({
 
 // Model id for every process in the job, spawned children included. Omit to use the kernel default.
 const ModelField = z.string().min(1).max(200).optional();
+const EffortField = z.enum(["low", "medium", "high"]).optional();
 
-const SingleJobSpec = z.object({
+// Fields every job spec shape accepts.
+const common = {
   name: z.string().optional(),
   model: ModelField,
+  // Reasoning effort for the processes listed in the spec. Omit for the model's default.
+  effort: EffortField,
+  // Reasoning effort for processes they spawn. Defaults to "low".
+  subagentEffort: EffortField,
   tokenBudget: z.number().int().positive().optional(),
-  process: ProcessSpecSchema,
-});
+  // Memory store shared by every process in the job and by later jobs with the same scope
+  // (the console uses the chat id). Processes need the MEMORY capability to use it.
+  memoryScope: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/).optional(),
+};
 
-const DagJobSpec = z.object({
-  name: z.string().optional(),
-  model: ModelField,
-  tokenBudget: z.number().int().positive().optional(),
-  processes: z.array(ProcessSpecSchema).min(1),
-});
+const SingleJobSpec = z.object({ ...common, process: ProcessSpecSchema });
+
+const DagJobSpec = z.object({ ...common, processes: z.array(ProcessSpecSchema).min(1) });
 
 export const JobSpecSchema = z.union([SingleJobSpec, DagJobSpec]);
 

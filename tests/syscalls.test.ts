@@ -13,7 +13,7 @@ describe("syscall schemas", () => {
   it("exposes every syscall as a tool with a JSON schema", () => {
     const tools = syscallTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["CHECKPOINT", "EXEC", "EXIT", "FS_READ", "FS_WRITE", "RECEIVE", "SEND", "SLEEP", "SPAWN"],
+      ["CHECKPOINT", "EXEC", "EXIT", "FS_READ", "FS_WRITE", "RECALL", "RECEIVE", "REMEMBER", "SEND", "SLEEP", "SPAWN"],
     );
     for (const t of tools) expect(t.input_schema.type).toBe("object");
   });

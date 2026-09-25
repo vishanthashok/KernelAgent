@@ -11,20 +11,45 @@ export interface ModelPrice {
 export const PRICE_TABLE: Record<string, ModelPrice> = {
   "mock-llm": { inputPerMTok: 3, outputPerMTok: 15 },
   "claude-fable-5-1": { inputPerMTok: 10, outputPerMTok: 50 },
+  "claude-fable-5": { inputPerMTok: 10, outputPerMTok: 50 },
   "claude-opus-5-5": { inputPerMTok: 4, outputPerMTok: 20 },
   "claude-opus-5": { inputPerMTok: 5, outputPerMTok: 25 },
+  "claude-opus-4-8": { inputPerMTok: 5, outputPerMTok: 25 },
+  "claude-opus-4-7": { inputPerMTok: 5, outputPerMTok: 25 },
+  "claude-opus-4-6": { inputPerMTok: 5, outputPerMTok: 25 },
   "claude-sonnet-5": { inputPerMTok: 2, outputPerMTok: 10 },
+  "claude-sonnet-4-6": { inputPerMTok: 3, outputPerMTok: 15 },
   "claude-haiku-4-5": { inputPerMTok: 1, outputPerMTok: 5 },
   default: { inputPerMTok: 3, outputPerMTok: 15 },
 };
 
+/** Prompt-cache price multipliers on the input rate: reads are 0.1x, 5-minute writes 1.25x. */
+export const CACHE_READ_MULTIPLIER = 0.1;
+export const CACHE_WRITE_MULTIPLIER = 1.25;
+
 export function priceFor(model: string): ModelPrice {
-  return PRICE_TABLE[model] ?? PRICE_TABLE.default!;
+  // Dated snapshots (claude-haiku-4-5-20251001) price like their base id.
+  return PRICE_TABLE[model] ?? PRICE_TABLE[model.replace(/-\d{8}$/, "")] ?? PRICE_TABLE.default!;
 }
 
-export function costUsd(model: string, inputTokens: number, outputTokens: number): number {
+export interface CacheUsage {
+  /** Input tokens served from the prompt cache. */
+  read?: number;
+  /** Input tokens written to the prompt cache. */
+  write?: number;
+}
+
+/**
+ * Cost of one model call. inputTokens is the total input, cached or not; cache says how
+ * much of it was read from or written to the prompt cache.
+ */
+export function costUsd(model: string, inputTokens: number, outputTokens: number, cache: CacheUsage = {}): number {
   const p = priceFor(model);
-  return (inputTokens * p.inputPerMTok + outputTokens * p.outputPerMTok) / 1_000_000;
+  const read = cache.read ?? 0;
+  const write = cache.write ?? 0;
+  const uncached = Math.max(0, inputTokens - read - write);
+  const input = (uncached + read * CACHE_READ_MULTIPLIER + write * CACHE_WRITE_MULTIPLIER) * p.inputPerMTok;
+  return (input + outputTokens * p.outputPerMTok) / 1_000_000;
 }
 
 const num = (v: string | undefined, d: number): number => {

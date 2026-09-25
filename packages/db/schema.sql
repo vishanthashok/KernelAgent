@@ -75,3 +75,16 @@ CREATE TABLE IF NOT EXISTS artifacts (
   created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS artifacts_job ON artifacts(job_id, id);
+
+-- Chat memory: notes shared by every agent and every job in one scope (a chat).
+-- Not append-only: users can delete entries.
+CREATE TABLE IF NOT EXISTS memories (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope       TEXT NOT NULL,
+  job_id      TEXT NOT NULL,
+  pid         TEXT,
+  kind        TEXT NOT NULL,
+  content     TEXT NOT NULL,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS memories_scope ON memories(scope, id);
