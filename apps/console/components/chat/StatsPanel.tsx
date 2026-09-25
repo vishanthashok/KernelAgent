@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import type { ReplayedProcess } from "@kernelagent/kernel/replay";
 import type { KernelState } from "@/lib/useKernel";
 import { useNow } from "@/lib/useKernel";
+import type { ResolvedModel } from "@/lib/useModels";
 import { clock, describe, hhmmss, STATE_COLOR, STATE_FILL } from "@/lib/format";
 
 const BUCKETS = 20;
@@ -132,12 +133,14 @@ export function StatsPanel({
   k,
   jobIds,
   currentJobId,
+  model,
   onClose,
 }: {
   k: KernelState;
   /** Jobs that belong to the open chat. */
   jobIds: string[];
   currentJobId?: string | undefined;
+  model?: ResolvedModel | undefined;
   onClose: () => void;
 }) {
   const now = useNow(1000);
@@ -196,6 +199,11 @@ export function StatsPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
+        <Section title="Model" right={model?.isDefault ? "API default" : "picked"}>
+          <div className="text-lg font-semibold tracking-tight">{model?.name ?? s?.model ?? "…"}</div>
+          {model && model.name !== model.id && <div className="mt-0.5 font-mono text-[11px] text-term-dim">{model.id}</div>}
+        </Section>
+
         <Section title="Kernel" right={s ? `${s.provider} · ${s.sandbox ?? "no sandbox"}` : "…"}>
           <div className="space-y-3">
             <Gauge label="Agent slots" value={s ? s.running / Math.max(1, s.maxConcurrency) : 0} sub={s ? `${s.running} / ${s.maxConcurrency}` : "…"} />

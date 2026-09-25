@@ -16,10 +16,13 @@ const EXAMPLES = [
 
 export function NewJob({
   provider,
+  model,
   onClose,
   onSubmitted,
 }: {
   provider?: string;
+  /** Model picked in the chat. Used unless the spec names its own. Unset means the API default. */
+  model?: string | undefined;
   onClose: () => void;
   onSubmitted: (res: SubmitResult) => void;
 }) {
@@ -35,7 +38,8 @@ export function NewJob({
     setBusy(true);
     setError(undefined);
     try {
-      onSubmitted(await api.submitJob(spec));
+      const withModel = model && spec && typeof spec === "object" && !("model" in spec) ? { ...spec, model } : spec;
+      onSubmitted(await api.submitJob(withModel));
     } catch (err) {
       setError((err as Error).message);
     } finally {

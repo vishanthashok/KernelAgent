@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useKernel, useNow } from "@/lib/useKernel";
+import { resolveModel, useLastModel, useModels } from "@/lib/useModels";
 import { hhmmss } from "@/lib/format";
 import { ProcessTable } from "./ProcessTable";
 import { EventStream } from "./EventStream";
@@ -66,6 +67,8 @@ export function Console() {
   );
   const graphJob = jobId !== "all" ? jobId : k.jobs[k.jobs.length - 1]?.id;
   const s = k.stats;
+  const lastModel = useLastModel();
+  const model = resolveModel(lastModel, useModels(s?.provider, s?.model).data, s?.model);
   const tokens = procs.reduce((n, p) => n + p.tokensUsed, 0);
   const cost = procs.reduce((n, p) => n + p.costUsd, 0);
   const live = procs.filter((p) => p.status !== "TERMINATED" && p.status !== "FAILED").length;
@@ -145,7 +148,9 @@ export function Console() {
         <div className="card grid grid-cols-2 gap-x-6 gap-y-4 p-5 text-sm">
           <div>
             <div className="label-caps">Model</div>
-            <div className="mt-1 truncate font-medium">{s ? `${s.provider} / ${s.model}` : "…"}</div>
+            <div className="mt-1 truncate font-medium" title={model?.id}>
+              {s ? `${s.provider} / ${model?.name ?? s.model}` : "…"}
+            </div>
           </div>
           <div>
             <div className="label-caps">Sandbox</div>
@@ -235,6 +240,7 @@ export function Console() {
       {newJob && (
         <NewJob
           {...(s?.provider ? { provider: s.provider } : {})}
+          model={model && !model.isDefault ? model.id : undefined}
           onClose={() => setNewJob(false)}
           onSubmitted={(res) => {
             setNewJob(false);

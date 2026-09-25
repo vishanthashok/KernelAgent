@@ -17,7 +17,7 @@ import {
 } from "@/lib/chats";
 import { buildCapabilities } from "@/lib/permissions";
 import { useKernel } from "@/lib/useKernel";
-import { useModels } from "@/lib/useModels";
+import { resolveModel, useModels } from "@/lib/useModels";
 import { AssistantTurn } from "./AssistantTurn";
 import { ChatSidebar } from "./ChatSidebar";
 import { Composer } from "./Composer";
@@ -86,10 +86,19 @@ export function ChatApp() {
   };
 
   const setOptions = (o: ChatOptions) => {
-    if (o.model !== options.model) saveLastModel(o.model);
+    if (o.model !== options.model) {
+      saveLastModel(o.model);
+      // New chats start on the model you picked last, wherever you picked it.
+      setDraftOptions((d) => {
+        const { model: _drop, ...rest } = d;
+        return o.model ? { ...rest, model: o.model } : rest;
+      });
+    }
     if (active) updateChat(active.id, (c) => ({ ...c, options: o }));
     else setDraftOptions(o);
   };
+
+  const currentModel = resolveModel(options.model, models, k.stats?.model);
 
   const lastTurn = active?.turns[active.turns.length - 1];
   const lastRoot = lastTurn?.rootPid ? k.processes.get(lastTurn.rootPid) : undefined;
@@ -159,6 +168,7 @@ export function ChatApp() {
         onDelete={remove}
         connected={k.connected}
         stats={k.stats}
+        model={currentModel}
         open={sidebar}
         onClose={() => setSidebar(false)}
       />
@@ -216,7 +226,7 @@ export function ChatApp() {
                   <div className="flex justify-end">
                     <div className="max-w-[85%] rounded-3xl bg-white/10 px-5 py-3 text-[15px] leading-relaxed whitespace-pre-wrap">{t.prompt}</div>
                   </div>
-                  <AssistantTurn turn={t} k={k} onRetry={() => void send(t.prompt)} />
+                  <AssistantTurn turn={t} k={k} models={models} onRetry={() => void send(t.prompt)} />
                 </div>
               ))}
             </div>
@@ -226,7 +236,7 @@ export function ChatApp() {
         <div className="mx-auto w-full max-w-3xl px-4">
           <ApiBanner connected={k.connected} error={k.apiError} className="mb-2" />
         </div>
-        <Composer options={options} onOptions={setOptions} onSend={(t) => void send(t)} onStop={stop} running={running} stats={k.stats} models={models} keyState={modelState} />
+        <Composer options={options} onOptions={setOptions} onSend={(t) => void send(t)} onStop={stop} running={running} stats={k.stats} models={models} keyState={modelState} model={currentModel} />
       </main>
 
       {statsOpen && (
@@ -237,6 +247,7 @@ export function ChatApp() {
               k={k}
               jobIds={active?.turns.flatMap((t) => (t.jobId ? [t.jobId] : [])) ?? []}
               currentJobId={lastTurn?.jobId}
+              model={currentModel}
               onClose={() => toggleStats(false)}
             />
           </aside>

@@ -3,6 +3,8 @@ import { useMemo, useState } from "react";
 import type { ReplayedProcess } from "@kernelagent/kernel/replay";
 import type { KernelState } from "@/lib/useKernel";
 import type { ChatTurn } from "@/lib/chats";
+import type { ModelsResponse } from "@/lib/api";
+import { modelName } from "@/lib/useModels";
 import { api, artifactUrl } from "@/lib/api";
 import { pendingApproval, stepsFor } from "@/lib/steps";
 import { Markdown } from "./Markdown";
@@ -16,7 +18,17 @@ function fileSize(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function AssistantTurn({ turn, k, onRetry }: { turn: ChatTurn; k: KernelState; onRetry: () => void }) {
+export function AssistantTurn({
+  turn,
+  k,
+  models,
+  onRetry,
+}: {
+  turn: ChatTurn;
+  k: KernelState;
+  models?: ModelsResponse | undefined;
+  onRetry: () => void;
+}) {
   const [copied, setCopied] = useState(false);
   const [showSubs, setShowSubs] = useState(false);
   const jobId = turn.jobId;
@@ -155,7 +167,7 @@ export function AssistantTurn({ turn, k, onRetry }: { turn: ChatTurn; k: KernelS
           <button onClick={onRetry} className="rounded-md px-1.5 py-0.5 hover:bg-white/10 hover:text-term-fg">
             retry
           </button>
-          {turn.model && <span>{turn.model}</span>}
+          {turn.model && <span title={turn.model}>{modelName(turn.model, models)}</span>}
           <span>{tokens.toLocaleString()} tokens</span>
           <span>${cost.toFixed(4)}</span>
           {procs.length > 0 && <span>job {jobId}</span>}

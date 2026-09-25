@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { api, type ModelInfo, type ModelsResponse } from "./api";
 import { getUserKey, onUserKeyChange } from "./userKey";
+import { loadLastModel, onLastModelChange } from "./chats";
 
 export interface ModelsState {
   data?: ModelsResponse;
@@ -54,4 +55,33 @@ export function useModels(provider: string | undefined, defaultModel?: string): 
   }, [provider, key]);
 
   return state;
+}
+
+export interface ResolvedModel {
+  id: string;
+  name: string;
+  /** True when no model was picked and the API's default runs. */
+  isDefault: boolean;
+}
+
+/** The model a message will actually run on, with its display name. */
+export function resolveModel(picked: string | undefined, data: ModelsResponse | undefined, fallback?: string): ResolvedModel | undefined {
+  const list = data?.models ?? [];
+  const nameOf = (id: string) => list.find((m) => m.id === id)?.name ?? id;
+  if (picked && list.some((m) => m.id === picked)) return { id: picked, name: nameOf(picked), isDefault: false };
+  const def = data?.default ?? fallback;
+  return def ? { id: def, name: nameOf(def), isDefault: true } : undefined;
+}
+
+/** Display name for a model id, when the list knows it. */
+export const modelName = (id: string, data: ModelsResponse | undefined) => data?.models.find((m) => m.id === id)?.name ?? id;
+
+/** The model last picked in the chat, kept in sync across components and tabs. */
+export function useLastModel(): string | undefined {
+  const [model, setModel] = useState<string | undefined>();
+  useEffect(() => {
+    setModel(loadLastModel());
+    return onLastModelChange(() => setModel(loadLastModel()));
+  }, []);
+  return model;
 }

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import type { Stats } from "@/lib/api";
 import type { Chat } from "@/lib/chats";
+import type { ResolvedModel } from "@/lib/useModels";
 
 export function ChatSidebar({
   chats,
@@ -11,6 +12,7 @@ export function ChatSidebar({
   onDelete,
   connected,
   stats,
+  model,
   open,
   onClose,
 }: {
@@ -21,6 +23,7 @@ export function ChatSidebar({
   onDelete: (id: string) => void;
   connected: boolean;
   stats?: Stats | undefined;
+  model?: ResolvedModel | undefined;
   open: boolean;
   onClose: () => void;
 }) {
@@ -65,7 +68,7 @@ export function ChatSidebar({
         <div className="border-t border-white/10 px-4 py-4 text-sm">
           <div className="mb-3 flex items-center gap-2 text-xs text-term-dim">
             <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-400" : "bg-red-400"}`} />
-            <span className="truncate">{connected ? (stats ? `${stats.provider} / ${stats.model}` : "live") : "API offline"}</span>
+            <span className="truncate">{connected ? (stats ? `${stats.provider} / ${model?.name ?? stats.model}` : "live") : "API offline"}</span>
           </div>
           <Link href="/console" className="pill pill-ghost w-full justify-center text-sm">
             Open console

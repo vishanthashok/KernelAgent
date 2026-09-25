@@ -54,6 +54,8 @@ export function loadLastModel(): string | undefined {
   }
 }
 
+const modelListeners = new Set<() => void>();
+
 export function saveLastModel(model: string | undefined): void {
   try {
     if (model) localStorage.setItem(MODEL_KEY, model);
@@ -61,6 +63,20 @@ export function saveLastModel(model: string | undefined): void {
   } catch {
     // storage blocked: the choice lasts for this session only
   }
+  for (const l of modelListeners) l();
+}
+
+/** Fires when the picked model changes, in this tab or another one. */
+export function onLastModelChange(fn: () => void): () => void {
+  modelListeners.add(fn);
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === MODEL_KEY) fn();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    modelListeners.delete(fn);
+    window.removeEventListener("storage", onStorage);
+  };
 }
 
 export const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);

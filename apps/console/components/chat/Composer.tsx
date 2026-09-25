@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ModelsResponse, Stats } from "@/lib/api";
 import type { ChatOptions } from "@/lib/chats";
 import { PERMISSIONS } from "@/lib/permissions";
-import type { ModelsState } from "@/lib/useModels";
+import type { ModelsState, ResolvedModel } from "@/lib/useModels";
 import { maskKey, setUserKey } from "@/lib/userKey";
 
 export function Composer({
@@ -15,6 +15,7 @@ export function Composer({
   stats,
   models,
   keyState,
+  model,
 }: {
   options: ChatOptions;
   onOptions: (o: ChatOptions) => void;
@@ -24,6 +25,7 @@ export function Composer({
   stats?: Stats | undefined;
   models?: ModelsResponse | undefined;
   keyState?: ModelsState | undefined;
+  model?: ResolvedModel | undefined;
 }) {
   const [text, setText] = useState("");
   const [advanced, setAdvanced] = useState(false);
@@ -55,7 +57,7 @@ export function Composer({
           <div className="mb-4 flex items-center">
             <div className="label-caps">Advanced</div>
             <span className="ml-auto font-mono text-[11px] text-term-dim">
-              {stats ? `${stats.provider} / ${stats.model} · sandbox ${stats.sandbox ?? "none"}` : ""}
+              {stats ? `${stats.provider} / ${model?.id ?? stats.model} · sandbox ${stats.sandbox ?? "none"}` : ""}
             </span>
           </div>
           <div className="mb-4 flex flex-wrap gap-5">
