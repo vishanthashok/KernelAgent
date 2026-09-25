@@ -81,6 +81,69 @@ describe("control API", () => {
   });
 });
 
+describe("bring your own key", () => {
+  const KEY = "sk-user-test-key-9f3a";
+
+  function byokKernel(requiresUserKey: boolean) {
+    const made = makeKernel();
+    Object.defineProperty(made.llm, "acceptsUserKeys", { value: true });
+    Object.defineProperty(made.llm, "requiresUserKey", { value: requiresUserKey });
+    const keys: (string | undefined)[] = [];
+    const complete = made.llm.complete.bind(made.llm);
+    vi.spyOn(made.llm, "complete").mockImplementation((req, opts) => {
+      keys.push(opts?.apiKey);
+      return complete(req, opts);
+    });
+    return { ...made, keys };
+  }
+
+  it("runs the job on the caller's key and never records it", async () => {
+    const { kernel, keys } = byokKernel(false);
+    kernel.start();
+    app = await buildServer(kernel);
+    const res = await app.inject({
+      method: "POST",
+      url: "/jobs",
+      headers: { "x-provider-key": KEY },
+      payload: { process: { role: "r", goal: "g" } },
+    });
+    expect(res.statusCode).toBe(201);
+    const { jobId } = res.json() as { jobId: string };
+    await kernel.waitForJob(jobId);
+    expect(keys.length).toBeGreaterThan(0);
+    expect(keys.every((k) => k === KEY)).toBe(true);
+
+    const everything = JSON.stringify([
+      kernel.bus.getEvents({ limit: 100_000 }),
+      kernel.listJobs(),
+      (await app.inject({ method: "GET", url: `/jobs/${jobId}` })).json(),
+    ]);
+    expect(everything).not.toContain(KEY);
+    await kernel.stop();
+  });
+
+  it("rejects a job without a key when the server requires one", async () => {
+    const { kernel } = byokKernel(true);
+    app = await buildServer(kernel);
+    const res = await app.inject({ method: "POST", url: "/jobs", payload: { process: { role: "r", goal: "g" } } });
+    expect(res.statusCode).toBe(400);
+    const models = (await app.inject({ method: "GET", url: "/models" })).json();
+    expect(models).toMatchObject({ acceptsUserKeys: true, requiresUserKey: true });
+  });
+
+  it("allows the key header through CORS", async () => {
+    const { kernel } = byokKernel(false);
+    app = await buildServer(kernel);
+    const res = await app.inject({
+      method: "OPTIONS",
+      url: "/jobs",
+      headers: { origin: "https://console.example", "access-control-request-method": "POST", "access-control-request-headers": "content-type,x-provider-key" },
+    });
+    expect(res.statusCode).toBeLessThan(300);
+    expect(String(res.headers["access-control-allow-headers"])).toContain("x-provider-key");
+  });
+});
+
 import WebSocket from "ws";
 
 describe("process routes", () => {

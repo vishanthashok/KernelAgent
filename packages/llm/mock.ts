@@ -59,6 +59,8 @@ function lastToolResult(messages: Message[]): ToolResultBlock | undefined {
 export class MockLLM implements ModelClient {
   readonly provider = "mock";
   readonly model = "mock-llm";
+  readonly acceptsUserKeys = false;
+  readonly requiresUserKey = false;
   private scripts: Record<string, MockScript>;
   private defaultScript: MockScript;
   private latencyMs: number;

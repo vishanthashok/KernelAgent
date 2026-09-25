@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ModelsResponse, Stats } from "@/lib/api";
 import type { ChatOptions } from "@/lib/chats";
 import { PERMISSIONS } from "@/lib/permissions";
+import type { ModelsState } from "@/lib/useModels";
+import { maskKey, setUserKey } from "@/lib/userKey";
 
 export function Composer({
   options,
@@ -12,6 +14,7 @@ export function Composer({
   running,
   stats,
   models,
+  keyState,
 }: {
   options: ChatOptions;
   onOptions: (o: ChatOptions) => void;
@@ -20,6 +23,7 @@ export function Composer({
   running: boolean;
   stats?: Stats | undefined;
   models?: ModelsResponse | undefined;
+  keyState?: ModelsState | undefined;
 }) {
   const [text, setText] = useState("");
   const [advanced, setAdvanced] = useState(false);
@@ -41,6 +45,7 @@ export function Composer({
 
   const perms = Object.values(options.perms).filter(Boolean).length;
   const list = models?.models ?? [];
+  const needsKey = !!models?.requiresUserKey && !keyState?.userKey;
   const stale = !!options.model && list.length > 0 && !list.some((m) => m.id === options.model);
 
   return (
@@ -78,6 +83,7 @@ export function Composer({
               />
             </label>
           </div>
+          {models?.acceptsUserKeys && <KeyField state={keyState} models={models} />}
           <div className="label-caps mb-2">Permissions</div>
           <div className="flex flex-wrap gap-2">
             {PERMISSIONS.map((p) => (
@@ -157,7 +163,15 @@ export function Composer({
         </div>
       </div>
       <p className="mt-2 text-center text-xs text-term-dim">
-        {stale
+        {needsKey ? (
+          <span className="text-amber-200">
+            This server runs on your own Anthropic API key.{" "}
+            <button onClick={() => setAdvanced(true)} className="underline">
+              Add your key
+            </button>
+            .
+          </span>
+        ) : stale
           ? `${options.model} is not available on this API. Messages use ${models?.default} until you pick another model.`
           : stats?.provider === "mock"
           ? "Mock model: free-text prompts only echo back. Set LLM_PROVIDER=anthropic on the API for real agents."
@@ -202,5 +216,56 @@ function ModelSelect({
         </option>
       ))}
     </select>
+  );
+}
+
+/** Paste your own provider key. It stays in this browser and goes to the API as a header on each call. */
+function KeyField({ state, models }: { state?: ModelsState | undefined; models: ModelsResponse }) {
+  const [draft, setDraft] = useState("");
+  const key = state?.userKey;
+  return (
+    <div className="mb-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="label-caps">Your API key</span>
+        <span className="font-mono text-[11px] text-term-dim">
+          {key ? `using ${maskKey(key)}` : models.requiresUserKey ? "required on this server" : "optional, the server key is used otherwise"}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <input
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={key ? "Paste a new key to replace it" : "sk-ant-…"}
+          className="min-w-0 flex-1 border border-white/15 bg-black/30 px-3 py-1.5 font-mono text-sm"
+        />
+        <button
+          onClick={() => {
+            if (!draft.trim()) return;
+            setUserKey(draft.trim());
+            setDraft("");
+          }}
+          disabled={!draft.trim()}
+          className="pill pill-light px-4 py-1 text-sm disabled:opacity-40"
+        >
+          Save
+        </button>
+        {key && (
+          <button onClick={() => setUserKey(undefined)} className="pill pill-ghost px-4 py-1 text-sm">
+            Remove
+          </button>
+        )}
+      </div>
+      {state?.error && key ? (
+        <div className="mt-2 text-xs text-red-300">{state.error}</div>
+      ) : key && state?.data ? (
+        <div className="mt-2 text-xs text-emerald-300">Key works. {state.data.models.length} models available.</div>
+      ) : null}
+      <p className="mt-2 text-xs text-term-dim">
+        Stored in this browser only. The API holds it in memory while your job runs and never writes it to the log or database.
+      </p>
+    </div>
   );
 }

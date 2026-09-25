@@ -1,4 +1,5 @@
 // Thin client for the KernelAgent control API.
+import { getUserKey } from "./userKey";
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
 const TOKEN = process.env.NEXT_PUBLIC_KERNEL_DEV_TOKEN;
 
@@ -9,6 +10,11 @@ export const wsUrl = (sinceSeq: number) =>
 export const artifactUrl = (id: number) => `${API_URL}/artifacts/${id}${TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ""}`;
 
 const TIMEOUT_MS = 15_000;
+
+const userKeyHeader = () => {
+  const k = getUserKey();
+  return k ? { "x-provider-key": k } : undefined;
+};
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const abort = new AbortController();
@@ -21,6 +27,7 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
       headers: {
         ...(init.body ? { "content-type": "application/json" } : {}),
         ...(TOKEN ? { authorization: `Bearer ${TOKEN}` } : {}),
+        ...(userKeyHeader() ?? {}),
         ...init.headers,
       },
     });
@@ -66,6 +73,10 @@ export interface ModelsResponse {
   provider: string;
   /** The model a job runs on when it does not pick one. */
   default: string;
+  /** The API runs jobs on a key the user brings. */
+  acceptsUserKeys?: boolean;
+  /** The API has no key of its own: every job needs the user's key. */
+  requiresUserKey?: boolean;
   models: ModelInfo[];
 }
 

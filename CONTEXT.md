@@ -108,6 +108,13 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 - Conversations live in the browser's `localStorage` (`kernelagent.chats`), not on the server.
 - `lib/steps.ts` turns a job's events into the step list shown in the thread. `lib/permissions.ts` is shared by the chat and the New Job modal.
 
+## Models and user keys
+
+- `GET /models` lists what the provider offers (Anthropic Models API, cached 10 min, built-in fallback). A job spec's `model` applies to every process in the job, spawned children included. `Kernel.modelFor(jobId)` resolves it.
+- A user key arrives as the `x-provider-key` header. `Kernel.submitJob(spec, { apiKey })` keeps it in memory only (`jobKeys`) and drops it when the job settles. It must never reach the spec, the DB, or an event: events stream to every console. `tests/api.test.ts` checks this.
+- A job that brought a key never falls back to the server key. A retry after the key is dropped fails and asks for a resubmit.
+- The console stores the key in localStorage (`kernelagent.providerKey`) and the last picked model in `kernelagent.model`.
+
 ## Output and files
 
 - The console's **Output** tab (default tab) shows each process's EXIT result as the answer, and download cards for files.

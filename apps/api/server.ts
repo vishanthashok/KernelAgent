@@ -15,6 +15,9 @@ const num = (v: unknown, d: number) => {
   return Number.isFinite(n) ? n : d;
 };
 
+/** Header a client uses to run its jobs on its own provider key. */
+export const USER_KEY_HEADER = "x-provider-key";
+
 export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: opts.logger ?? false });
   await app.register(cors, { origin: true });
@@ -62,23 +65,47 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
 
   // ---------------------------------------------------------------- jobs
 
-  // Models the configured provider can run. The console fills its model picker from this.
-  app.get("/models", async () => ({
-    provider: kernel.llm.provider,
-    default: kernel.llm.model,
-    models: await kernel.llm.listModels(),
-  }));
+  /** A user's own provider key, sent as a header so it never lands in a job spec or event. */
+  const userKey = (req: { headers: Record<string, unknown> }): string | undefined => {
+    const k = req.headers[USER_KEY_HEADER];
+    return kernel.llm.acceptsUserKeys && typeof k === "string" && k.trim() ? k.trim() : undefined;
+  };
+
+  // Models the provider can run, for the caller's key when it sends one. Fills the console's model picker.
+  app.get("/models", async (req, reply) => {
+    try {
+      const apiKey = userKey(req);
+      return {
+        provider: kernel.llm.provider,
+        default: kernel.llm.model,
+        acceptsUserKeys: kernel.llm.acceptsUserKeys,
+        requiresUserKey: kernel.llm.requiresUserKey,
+        models: await kernel.llm.listModels(apiKey ? { apiKey } : {}),
+      };
+    } catch (err) {
+      return reply.code(400).send({ error: (err as Error).message });
+    }
+  });
 
   app.post("/jobs", async (req, reply) => {
+    const apiKey = userKey(req);
+    if (kernel.llm.requiresUserKey && !apiKey) {
+      return reply.code(400).send({ error: "this server runs on your own API key. Add it in the console settings." });
+    }
     const model = (req.body as { model?: unknown } | null)?.model;
     if (typeof model === "string" && model !== kernel.llm.model) {
-      const known = await kernel.llm.listModels();
+      let known;
+      try {
+        known = await kernel.llm.listModels(apiKey ? { apiKey } : {});
+      } catch (err) {
+        return reply.code(400).send({ error: (err as Error).message });
+      }
       if (!known.some((m) => m.id === model)) {
         return reply.code(400).send({ error: `unknown model ${model} for provider ${kernel.llm.provider}` });
       }
     }
     try {
-      return reply.code(201).send(kernel.submitJob(req.body));
+      return reply.code(201).send(kernel.submitJob(req.body, apiKey ? { apiKey } : {}));
     } catch (err) {
       if (err instanceof JobSpecError) return reply.code(400).send({ error: err.message });
       throw err;

@@ -191,7 +191,8 @@ curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/js
 |---|---|---|
 | `LLM_PROVIDER` | `mock` | `mock` or `anthropic` |
 | `ANTHROPIC_API_KEY` | | Required for `anthropic`. Without it the mock is used. |
-| `ANTHROPIC_MODEL` | `claude-opus-5` | Model id |
+| `ANTHROPIC_MODEL` | `claude-opus-5` | Default model id. A job can pick another with `"model"` in its spec, or from the chat's model picker. |
+| `REQUIRE_USER_KEY` | | `true` makes every job bring its own Anthropic key (the `x-provider-key` header, set from the chat's Advanced panel). The server's key is never used. |
 | `SANDBOX_PROVIDER` | `local` | `local` or `e2b` |
 | `E2B_API_KEY` | | Required for `e2b`. Without it `local` is used. |
 | `MAX_CONCURRENCY` | `4` | Running process cap |

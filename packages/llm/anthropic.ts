@@ -1,5 +1,5 @@
 // AnthropicClient: wraps @anthropic-ai/sdk. Syscalls reach the model as tools.
-// Selected when LLM_PROVIDER=anthropic and ANTHROPIC_API_KEY is set.
+// Selected when LLM_PROVIDER=anthropic. Jobs may bring their own key (see Kernel.submitJob).
 import Anthropic from "@anthropic-ai/sdk";
 import type { CompleteOptions, CompletionRequest, CompletionResponse, ContentBlock, Message, ModelClient, ModelInfo } from "./index.ts";
 
@@ -16,39 +16,71 @@ export const FALLBACK_ANTHROPIC_MODELS: ModelInfo[] = [
 
 const MODEL_LIST_TTL_MS = 10 * 60_000;
 
+const MAX_USER_CLIENTS = 100;
+
 export class AnthropicClient implements ModelClient {
   readonly provider = "anthropic";
   readonly model: string;
-  private client: Anthropic;
+  readonly acceptsUserKeys = true;
+  readonly requiresUserKey: boolean;
+  /** Client on the server's own key. Unset when the server runs on user keys only. */
+  private client: Anthropic | undefined;
+  /** Clients for keys users brought, reused across calls. Memory only. */
+  private userClients = new Map<string, Anthropic>();
   private maxTokens: number;
-  private modelCache?: { at: number; models: ModelInfo[] };
+  private modelCache = new Map<string, { at: number; models: ModelInfo[] }>();
 
   constructor(opts: { apiKey?: string; model?: string; maxTokens?: number } = {}) {
-    this.client = new Anthropic(opts.apiKey ? { apiKey: opts.apiKey } : {});
+    this.client = opts.apiKey ? new Anthropic({ apiKey: opts.apiKey }) : undefined;
+    this.requiresUserKey = !this.client;
     this.model = opts.model || DEFAULT_ANTHROPIC_MODEL;
     this.maxTokens = opts.maxTokens ?? 16_000;
   }
 
-  /** Models the API key can use, newest first, from the Models API. Cached for 10 minutes. */
-  async listModels(): Promise<ModelInfo[]> {
+  private clientFor(apiKey?: string): Anthropic {
+    if (apiKey) {
+      let c = this.userClients.get(apiKey);
+      if (!c) {
+        if (this.userClients.size >= MAX_USER_CLIENTS) this.userClients.delete(this.userClients.keys().next().value!);
+        c = new Anthropic({ apiKey });
+        this.userClients.set(apiKey, c);
+      }
+      return c;
+    }
+    if (!this.client) throw new Error("no Anthropic API key: this server needs you to bring your own key");
+    return this.client;
+  }
+
+  /**
+   * Models a key can use, from the Models API, cached for 10 minutes. The server's key
+   * falls back to a built-in list on error. A user's key throws, so a bad key is reported.
+   */
+  async listModels(opts: { apiKey?: string } = {}): Promise<ModelInfo[]> {
+    const cacheKey = opts.apiKey ?? "";
     const now = Date.now();
-    if (this.modelCache && now - this.modelCache.at < MODEL_LIST_TTL_MS) return this.modelCache.models;
-    let models: ModelInfo[];
-    try {
-      models = [];
-      for await (const m of this.client.models.list({ limit: 100 })) models.push({ id: m.id, name: m.display_name || m.id });
-      if (models.length === 0) models = FALLBACK_ANTHROPIC_MODELS;
-    } catch (err) {
-      console.warn(`[llm] could not list Anthropic models, using the built-in list: ${(err as Error).message}`);
+    const hit = this.modelCache.get(cacheKey);
+    if (hit && now - hit.at < MODEL_LIST_TTL_MS) return hit.models;
+    let models: ModelInfo[] = [];
+    if (!opts.apiKey && !this.client) {
       models = FALLBACK_ANTHROPIC_MODELS;
+    } else {
+      try {
+        for await (const m of this.clientFor(opts.apiKey).models.list({ limit: 100 })) models.push({ id: m.id, name: m.display_name || m.id });
+        if (models.length === 0) models = FALLBACK_ANTHROPIC_MODELS;
+      } catch (err) {
+        if (opts.apiKey) throw new Error(`Anthropic rejected this key: ${(err as Error).message}`);
+        console.warn(`[llm] could not list Anthropic models, using the built-in list: ${(err as Error).message}`);
+        models = FALLBACK_ANTHROPIC_MODELS;
+      }
     }
     if (!models.some((m) => m.id === this.model)) models = [{ id: this.model, name: this.model }, ...models];
-    this.modelCache = { at: now, models };
+    if (this.modelCache.size >= MAX_USER_CLIENTS) this.modelCache.delete(this.modelCache.keys().next().value!);
+    this.modelCache.set(cacheKey, { at: now, models });
     return models;
   }
 
   async complete(req: CompletionRequest, opts: CompleteOptions = {}): Promise<CompletionResponse> {
-    const response = await this.client.messages.create(
+    const response = await this.clientFor(opts.apiKey).messages.create(
       {
         model: opts.model || this.model,
         max_tokens: this.maxTokens,

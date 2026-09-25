@@ -66,6 +66,8 @@ export interface CompleteOptions {
   signal?: AbortSignal;
   /** Override the client's default model for this call. */
   model?: string;
+  /** A user's own provider key for this call, instead of the server's. */
+  apiKey?: string;
 }
 
 export interface ModelClient {
@@ -73,8 +75,12 @@ export interface ModelClient {
   /** Default model, used when a job does not pick one. */
   readonly model: string;
   complete(req: CompletionRequest, opts?: CompleteOptions): Promise<CompletionResponse>;
-  /** Models this client can run. The default model is always included. */
-  listModels(): Promise<ModelInfo[]>;
+  /** Whether a job can bring its own provider key. */
+  readonly acceptsUserKeys: boolean;
+  /** Whether jobs must bring a key because the server has none. */
+  readonly requiresUserKey: boolean;
+  /** Models this client can run. With apiKey, the models that key can use. */
+  listModels(opts?: { apiKey?: string }): Promise<ModelInfo[]>;
 }
 
 /** Rough token estimate: 4 characters per token. Used for rate-limit pre-checks and the mock. */

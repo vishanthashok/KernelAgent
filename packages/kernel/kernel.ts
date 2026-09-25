@@ -123,6 +123,12 @@ export class Kernel {
   private runner?: ProcessRunner;
   private runs = new Map<string, RunState>();
   private jobs = new Map<string, Job>();
+  /**
+   * API keys users brought for their jobs. Memory only: never in the spec, the DB, or an
+   * event, since events stream to every console. Dropped when the job settles.
+   */
+  private jobKeys = new Map<string, string>();
+  private userKeyJobs = new Set<string>();
   private jobWaiters = new Map<string, ((j: Job) => void)[]>();
   private nextPid: number;
   private watchdog?: NodeJS.Timeout;
@@ -214,9 +220,13 @@ export class Kernel {
 
   // ---------------------------------------------------------------- jobs
 
-  submitJob(input: unknown): SubmitResult {
+  submitJob(input: unknown, opts: { apiKey?: string } = {}): SubmitResult {
     const { spec, processes } = normalizeJobSpec(input);
     const jobId = `job_${randomUUID().slice(0, 8)}`;
+    if (opts.apiKey) {
+      this.jobKeys.set(jobId, opts.apiKey);
+      this.userKeyJobs.add(jobId);
+    }
     const job: Job = {
       id: jobId,
       spec,
@@ -336,6 +346,11 @@ export class Kernel {
     }
     const proc = this.pm.require(h.pid);
     const model = this.modelFor(proc.jobId);
+    const apiKey = this.jobKeys.get(proc.jobId);
+    // A job that brought its own key never falls back to the server's key.
+    if (!apiKey && this.userKeyJobs.has(proc.jobId)) {
+      throw new Error("this job's API key is no longer held by the server. Submit the job again.");
+    }
     const limiter = this.resources.limiter(this.llm.provider);
     const estimate = estimateTokens(req.system) + estimateTokens(req.messages) + estimateTokens(req.tools);
     await limiter.acquire(estimate, h.signal, h.pid);
@@ -356,7 +371,7 @@ export class Kernel {
       "llm.call",
       { "kernel.pid": proc.pid, "llm.provider": this.llm.provider, "llm.model": model },
       async (span) => {
-        const r = await this.llm.complete(fullReq, { signal: h.signal, model });
+        const r = await this.llm.complete(fullReq, { signal: h.signal, model, ...(apiKey ? { apiKey } : {}) });
         span.setAttributes({ "llm.input_tokens": r.inputTokens, "llm.output_tokens": r.outputTokens });
         return r;
       },
@@ -696,6 +711,7 @@ export class Kernel {
     if (!procs.every((p) => settled(p.status))) return;
     job.status = procs.every((p) => exitedSuccessfully(p)) ? "COMPLETED" : "FAILED";
     this.repos.jobs.setStatus(jobId, job.status);
+    this.jobKeys.delete(jobId);
     const js = this.jobSpans.get(jobId);
     if (js) {
       js.span.setAttribute("kernel.job_status", job.status);

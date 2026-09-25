@@ -31,7 +31,8 @@ const SUGGESTIONS = [
 
 export function ChatApp() {
   const k = useKernel();
-  const models = useModels(k.stats?.provider);
+  const modelState = useModels(k.stats?.provider, k.stats?.model);
+  const models = modelState.data;
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeId, setActiveId] = useState<string>();
   const [draftOptions, setDraftOptions] = useState<ChatOptions>(DEFAULT_OPTIONS);
@@ -200,7 +201,7 @@ export function ChatApp() {
         <div className="mx-auto w-full max-w-3xl px-4">
           <ApiBanner connected={k.connected} error={k.apiError} className="mb-2" />
         </div>
-        <Composer options={options} onOptions={setOptions} onSend={(t) => void send(t)} onStop={stop} running={running} stats={k.stats} models={models} />
+        <Composer options={options} onOptions={setOptions} onSend={(t) => void send(t)} onStop={stop} running={running} stats={k.stats} models={models} keyState={modelState} />
       </main>
     </div>
   );
