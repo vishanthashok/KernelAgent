@@ -188,8 +188,7 @@ export const SYSCALLS: Registry = {
       if (!to || to.jobId !== from.jobId) throw new SyscallError(`no process ${a.to} in this job`);
       if (to.status === "TERMINATED" || to.status === "FAILED") throw new SyscallError(`process ${a.to} is ${to.status}`);
       const { message, woke } = k.channel.send(from.jobId, from.pid, to.pid, a.message);
-      k.bus.emit("MESSAGE", from.jobId, from.pid, { id: message.id, from: from.pid, to: to.pid, body: a.message, woke });
-      return { messageId: message.id, delivered: true };
+      return { messageId: message.id, queued: true, wokeReceiver: woke };
     },
   },
   RECEIVE: {

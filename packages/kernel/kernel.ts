@@ -141,7 +141,11 @@ export class Kernel {
     });
     this.pm.onTransition((t) => this.onTransition(t));
     this.channel = new Channel(new Mailbox(this.repos.messages, this.now), {
-      onDeliver: (m) => (this.waitingOn(m.toPid) === "RECEIVE" ? this.wake(m.toPid, undefined, "MESSAGE") : false),
+      onDeliver: (m) => {
+        const waiting = this.waitingOn(m.toPid) === "RECEIVE";
+        this.bus.emit("MESSAGE", m.jobId, m.fromPid, { id: m.id, from: m.fromPid, to: m.toPid, body: m.body, wakes: waiting });
+        return waiting ? this.wake(m.toPid, undefined, "MESSAGE") : false;
+      },
     });
     this.syscalls = new SyscallDispatcher(this);
     this.metrics = registerKernelMetrics({
@@ -308,7 +312,13 @@ export class Kernel {
     const started = this.now();
     const fullReq: CompletionRequest = {
       ...req,
-      metadata: { pid: proc.pid, role: proc.role, goal: proc.goal, jobId: proc.jobId },
+      metadata: {
+        pid: proc.pid,
+        role: proc.role,
+        goal: proc.goal,
+        jobId: proc.jobId,
+        peers: this.pm.list({ jobId: proc.jobId }).filter((p) => p.pid !== proc.pid).map((p) => ({ pid: p.pid, role: p.role })),
+      },
     };
     const res = await withSpan(
       "llm.call",
@@ -334,6 +344,7 @@ export class Kernel {
       outputTokens: res.outputTokens,
       costUsd: costUsd(this.llm.model, res.inputTokens, res.outputTokens),
       durationMs: this.now() - started,
+      ...(proc.sandboxId ? { sandboxId: proc.sandboxId } : {}),
     });
 
     const violation = this.resources.charge(h.pid, this.llm.model, res.inputTokens, res.outputTokens);

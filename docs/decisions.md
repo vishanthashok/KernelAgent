@@ -69,3 +69,15 @@ Choices the brief left open, and deviations from it, with the reason for each.
 
 - **What is stored.** The CHECKPOINT event holds the message history up to the assistant turn that called CHECKPOINT, results of tool calls earlier in that turn, the current event sequence, and a sandbox marker. The sandbox filesystem is not snapshotted.
 - **Resume.** On retry the loop rebuilds the context from the snapshot and closes the interrupted turn: CHECKPOINT gets a `{resumed: true}` result, and tool calls after it in the same turn get an error result saying they did not run.
+
+## API and console
+
+- **Extra read-only routes** beyond Section 13: `GET /health`, `GET /stats` (uptime, limits, rate-limiter saturation), `GET /jobs`, `GET /messages`, `GET /sandboxes`. The console needs them. No other mutations were added.
+- **Dev token.** If `KERNEL_DEV_TOKEN` is set, every request needs `Authorization: Bearer <token>` (or `?token=` for the WebSocket). Unset by default.
+- **WS handshake.** `?sinceSeq=N` on the URL, or a first message `{"sinceSeq": N}`. The server subscribes before it backfills, then flushes the buffered live events, dropping any sequence already sent. With no handshake in 1s it starts live from the current sequence.
+- **The console derives all state from the event stream.** It folds events with `applyEvent` from `packages/kernel/replay.ts`, the same reducer the replay test checks against the live table. Rewind is `replayProcesses(events, untilSeq)`. Only `/stats` is polled.
+- **CPU\*** is the share of a process's life (first dispatch to exit, or now) spent RUNNING. It is labeled "not real CPU" everywhere it appears.
+- **Task Graph layout** is a hand-rolled layered SVG (column = 1 + deepest dependency or parent). No graph library.
+- **Peers in the prompt.** The system prompt lists the other processes in the job (pid, role, goal) so a model can address SEND. The list is fixed when the run starts, so the prompt stays byte-stable across turns.
+- **Example scripts in the API.** With the mock provider, the API loads the example workloads' mock scripts and adds 400 ms of latency per call (`MOCK_LATENCY_MS`), so example jobs submitted over HTTP behave like the CLI runs and are slow enough to watch.
+- **MESSAGE events are emitted by the kernel's delivery hook**, before the receiver is woken, so the log shows the message before the `WAITING -> READY` it causes.

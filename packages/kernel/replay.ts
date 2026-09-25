@@ -93,6 +93,7 @@ export function applyEvent(procs: Map<string, ReplayedProcess>, e: KernelEvent):
     case "LLM_CALL":
       proc.tokensUsed += (p.inputTokens ?? 0) + (p.outputTokens ?? 0);
       proc.costUsd += p.costUsd ?? 0;
+      if (p.sandboxId) proc.sandboxId = p.sandboxId;
       break;
     case "SYSCALL":
       if (p.sandboxId) proc.sandboxId = p.sandboxId;

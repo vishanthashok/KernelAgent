@@ -1,0 +1,13 @@
+{
+  "name": "coding-task",
+  "process": {
+    "id": "coder",
+    "role": "coder",
+    "goal": "Write a Python program /primes.py that prints the first 15 prime numbers on one line, separated by spaces. Run it with python3, save its output to /out.txt, read /out.txt back, and EXIT with the exact output.",
+    "priority": 5,
+    "tokenBudget": 60000,
+    "maxRetries": 2,
+    "timeoutMs": 180000,
+    "capabilities": [{ "type": "FS_READ" }, { "type": "FS_WRITE" }, { "type": "EXEC" }]
+  }
+}
