@@ -155,6 +155,7 @@ export function AssistantTurn({ turn, k, onRetry }: { turn: ChatTurn; k: KernelS
           <button onClick={onRetry} className="rounded-md px-1.5 py-0.5 hover:bg-white/10 hover:text-term-fg">
             retry
           </button>
+          {turn.model && <span>{turn.model}</span>}
           <span>{tokens.toLocaleString()} tokens</span>
           <span>${cost.toFixed(4)}</span>
           {procs.length > 0 && <span>job {jobId}</span>}

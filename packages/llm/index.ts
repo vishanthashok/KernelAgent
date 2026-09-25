@@ -57,10 +57,24 @@ export interface CompletionResponse {
   raw: unknown;
 }
 
+export interface ModelInfo {
+  id: string;
+  name: string;
+}
+
+export interface CompleteOptions {
+  signal?: AbortSignal;
+  /** Override the client's default model for this call. */
+  model?: string;
+}
+
 export interface ModelClient {
   readonly provider: string;
+  /** Default model, used when a job does not pick one. */
   readonly model: string;
-  complete(req: CompletionRequest, opts?: { signal?: AbortSignal }): Promise<CompletionResponse>;
+  complete(req: CompletionRequest, opts?: CompleteOptions): Promise<CompletionResponse>;
+  /** Models this client can run. The default model is always included. */
+  listModels(): Promise<ModelInfo[]>;
 }
 
 /** Rough token estimate: 4 characters per token. Used for rate-limit pre-checks and the mock. */

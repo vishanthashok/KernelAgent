@@ -19,14 +19,19 @@ export const ProcessSpecSchema = z.object({
   timeoutMs: z.number().int().positive().default(5 * 60_000),
 });
 
+// Model id for every process in the job, spawned children included. Omit to use the kernel default.
+const ModelField = z.string().min(1).max(200).optional();
+
 const SingleJobSpec = z.object({
   name: z.string().optional(),
+  model: ModelField,
   tokenBudget: z.number().int().positive().optional(),
   process: ProcessSpecSchema,
 });
 
 const DagJobSpec = z.object({
   name: z.string().optional(),
+  model: ModelField,
   tokenBudget: z.number().int().positive().optional(),
   processes: z.array(ProcessSpecSchema).min(1),
 });

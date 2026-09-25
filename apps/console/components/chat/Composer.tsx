@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { Stats } from "@/lib/api";
+import type { ModelsResponse, Stats } from "@/lib/api";
 import type { ChatOptions } from "@/lib/chats";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -11,6 +11,7 @@ export function Composer({
   onStop,
   running,
   stats,
+  models,
 }: {
   options: ChatOptions;
   onOptions: (o: ChatOptions) => void;
@@ -18,6 +19,7 @@ export function Composer({
   onStop: () => void;
   running: boolean;
   stats?: Stats | undefined;
+  models?: ModelsResponse | undefined;
 }) {
   const [text, setText] = useState("");
   const [advanced, setAdvanced] = useState(false);
@@ -38,6 +40,8 @@ export function Composer({
   };
 
   const perms = Object.values(options.perms).filter(Boolean).length;
+  const list = models?.models ?? [];
+  const stale = !!options.model && list.length > 0 && !list.some((m) => m.id === options.model);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-4">
@@ -50,6 +54,10 @@ export function Composer({
             </span>
           </div>
           <div className="mb-4 flex flex-wrap gap-5">
+            <label className="flex items-center gap-3">
+              <span className="label-caps">Model</span>
+              <ModelSelect options={options} onOptions={onOptions} models={models} className="border border-white/15 bg-black/30 px-3 py-1.5 text-sm" />
+            </label>
             <label className="flex items-center gap-3">
               <span className="label-caps">Role</span>
               <input
@@ -123,6 +131,12 @@ export function Composer({
           >
             Advanced
           </button>
+          <ModelSelect
+            options={options}
+            onOptions={onOptions}
+            models={models}
+            className="max-w-[12rem] cursor-pointer truncate rounded-full border-0 bg-transparent px-2 py-1 text-xs text-term-dim hover:bg-white/10 hover:text-term-fg"
+          />
           <span className="hidden font-mono text-[11px] text-term-dim sm:inline">
             {options.role} · {perms}/4 perms · {Math.round(options.tokenBudget / 1000)}k tokens{options.approval ? " · approval on" : ""}
           </span>
@@ -143,10 +157,50 @@ export function Composer({
         </div>
       </div>
       <p className="mt-2 text-center text-xs text-term-dim">
-        {stats?.provider === "mock"
+        {stale
+          ? `${options.model} is not available on this API. Messages use ${models?.default} until you pick another model.`
+          : stats?.provider === "mock"
           ? "Mock model: free-text prompts only echo back. Set LLM_PROVIDER=anthropic on the API for real agents."
           : "Each message runs as a sandboxed agent job. Agents can make mistakes."}
       </p>
     </div>
+  );
+}
+
+/** Model picker. "Default" defers to the API's configured model. */
+function ModelSelect({
+  options,
+  onOptions,
+  models,
+  className,
+}: {
+  options: ChatOptions;
+  onOptions: (o: ChatOptions) => void;
+  models?: ModelsResponse | undefined;
+  className: string;
+}) {
+  const list = models?.models ?? [];
+  const current = options.model ?? "";
+  const nameOf = (id: string) => list.find((m) => m.id === id)?.name ?? id;
+  return (
+    <select
+      value={current}
+      disabled={list.length === 0}
+      onChange={(e) => {
+        const { model: _drop, ...rest } = options;
+        onOptions(e.target.value ? { ...rest, model: e.target.value } : rest);
+      }}
+      title="Model"
+      className={className}
+    >
+      <option value="">{models ? `Default · ${nameOf(models.default)}` : "Default model"}</option>
+      {current && !list.some((m) => m.id === current) && <option value={current}>{current} (unavailable)</option>}
+      {list.map((m) => (
+        <option key={m.id} value={m.id}>
+          {m.name}
+          {m.name !== m.id ? ` · ${m.id}` : ""}
+        </option>
+      ))}
+    </select>
   );
 }

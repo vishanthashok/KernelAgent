@@ -318,6 +318,11 @@ export class Kernel {
     return !!r && r.generation === h.generation && !h.signal.aborted;
   }
 
+  /** The model a job runs on: the one its spec picked, else the client's default. */
+  modelFor(jobId: string): string {
+    return (this.jobs.get(jobId) ?? this.getJob(jobId))?.spec.model ?? this.llm.model;
+  }
+
   /**
    * Call the model on behalf of a process. Applies the rate limiter, records the full
    * request and response as an LLM_CALL event, and charges the token budget.
@@ -330,6 +335,7 @@ export class Kernel {
       throw new BudgetExceededError(pre);
     }
     const proc = this.pm.require(h.pid);
+    const model = this.modelFor(proc.jobId);
     const limiter = this.resources.limiter(this.llm.provider);
     const estimate = estimateTokens(req.system) + estimateTokens(req.messages) + estimateTokens(req.tools);
     await limiter.acquire(estimate, h.signal, h.pid);
@@ -348,32 +354,32 @@ export class Kernel {
     };
     const res = await withSpan(
       "llm.call",
-      { "kernel.pid": proc.pid, "llm.provider": this.llm.provider, "llm.model": this.llm.model },
+      { "kernel.pid": proc.pid, "llm.provider": this.llm.provider, "llm.model": model },
       async (span) => {
-        const r = await this.llm.complete(fullReq, { signal: h.signal });
+        const r = await this.llm.complete(fullReq, { signal: h.signal, model });
         span.setAttributes({ "llm.input_tokens": r.inputTokens, "llm.output_tokens": r.outputTokens });
         return r;
       },
     );
     this.assertLive(h);
-    const attrs = { provider: this.llm.provider, model: this.llm.model, role: proc.role };
+    const attrs = { provider: this.llm.provider, model, role: proc.role };
     this.metrics.tokens(res.inputTokens + res.outputTokens, attrs);
-    this.metrics.cost(costUsd(this.llm.model, res.inputTokens, res.outputTokens), attrs);
+    this.metrics.cost(costUsd(model, res.inputTokens, res.outputTokens), attrs);
     limiter.reconcile(estimate, res.inputTokens + res.outputTokens);
 
     this.bus.emit("LLM_CALL", proc.jobId, proc.pid, {
       provider: this.llm.provider,
-      model: this.llm.model,
+      model,
       request: { system: req.system, messages: req.messages, tools: req.tools },
       response: { content: res.content, raw: res.raw },
       inputTokens: res.inputTokens,
       outputTokens: res.outputTokens,
-      costUsd: costUsd(this.llm.model, res.inputTokens, res.outputTokens),
+      costUsd: costUsd(model, res.inputTokens, res.outputTokens),
       durationMs: this.now() - started,
       ...(proc.sandboxId ? { sandboxId: proc.sandboxId } : {}),
     });
 
-    const violation = this.resources.charge(h.pid, this.llm.model, res.inputTokens, res.outputTokens);
+    const violation = this.resources.charge(h.pid, model, res.inputTokens, res.outputTokens);
     if (violation) {
       this.failRun(h, violation, `${violation}: used ${this.pm.require(h.pid).tokensUsed} tokens`);
       throw new BudgetExceededError(violation);

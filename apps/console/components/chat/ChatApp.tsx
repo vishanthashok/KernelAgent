@@ -2,9 +2,22 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { buildGoal, DEFAULT_OPTIONS, loadChats, newId, saveChats, titleFor, type Chat, type ChatOptions, type ChatTurn } from "@/lib/chats";
+import {
+  buildGoal,
+  DEFAULT_OPTIONS,
+  loadChats,
+  loadLastModel,
+  newId,
+  saveChats,
+  saveLastModel,
+  titleFor,
+  type Chat,
+  type ChatOptions,
+  type ChatTurn,
+} from "@/lib/chats";
 import { buildCapabilities } from "@/lib/permissions";
 import { useKernel } from "@/lib/useKernel";
+import { useModels } from "@/lib/useModels";
 import { AssistantTurn } from "./AssistantTurn";
 import { ChatSidebar } from "./ChatSidebar";
 import { Composer } from "./Composer";
@@ -18,6 +31,7 @@ const SUGGESTIONS = [
 
 export function ChatApp() {
   const k = useKernel();
+  const models = useModels(k.stats?.provider);
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeId, setActiveId] = useState<string>();
   const [draftOptions, setDraftOptions] = useState<ChatOptions>(DEFAULT_OPTIONS);
@@ -27,6 +41,8 @@ export function ChatApp() {
   const stick = useRef(true);
 
   useEffect(() => {
+    const last = loadLastModel();
+    if (last) setDraftOptions((o) => ({ ...o, model: last }));
     const c = loadChats();
     setChats(c);
     const latest = [...c].sort((a, b) => b.updatedAt - a.updatedAt)[0];
@@ -52,6 +68,7 @@ export function ChatApp() {
     updateChat(chatId, (c) => ({ ...c, turns: c.turns.map((t) => (t.id === turnId ? { ...t, ...patch } : t)) }));
 
   const setOptions = (o: ChatOptions) => {
+    if (o.model !== options.model) saveLastModel(o.model);
     if (active) updateChat(active.id, (c) => ({ ...c, options: o }));
     else setDraftOptions(o);
   };
@@ -77,9 +94,12 @@ export function ChatApp() {
     stick.current = true;
     updateChat(chatId, (c) => ({ ...c, updatedAt: Date.now(), turns: [...c.turns, turn] }));
     const opts = chat.options;
+    // Send a picked model only if this API offers it. Otherwise the API's default runs.
+    const model = opts.model && models?.models.some((m) => m.id === opts.model) ? opts.model : undefined;
     try {
       const res = await api.submitJob({
         name: titleFor(prompt),
+        ...(model ? { model } : {}),
         process: {
           role: opts.role.trim() || "assistant",
           goal: buildGoal(prompt, earlier, opts.history),
@@ -87,7 +107,7 @@ export function ChatApp() {
           tokenBudget: opts.tokenBudget,
         },
       });
-      updateTurn(chatId, turn.id, { jobId: res.jobId, rootPid: Object.values(res.pids)[0]! });
+      updateTurn(chatId, turn.id, { jobId: res.jobId, rootPid: Object.values(res.pids)[0]!, model: model ?? models?.default ?? k.stats?.model });
     } catch (err) {
       updateTurn(chatId, turn.id, { error: (err as Error).message });
     }
@@ -180,7 +200,7 @@ export function ChatApp() {
         <div className="mx-auto w-full max-w-3xl px-4">
           <ApiBanner connected={k.connected} error={k.apiError} className="mb-2" />
         </div>
-        <Composer options={options} onOptions={setOptions} onSend={(t) => void send(t)} onStop={stop} running={running} stats={k.stats} />
+        <Composer options={options} onOptions={setOptions} onSend={(t) => void send(t)} onStop={stop} running={running} stats={k.stats} models={models} />
       </main>
     </div>
   );

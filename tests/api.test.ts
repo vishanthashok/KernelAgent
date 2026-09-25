@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 type FastifyInstance = Awaited<ReturnType<typeof buildServer>>;
 import { buildServer } from "@kernelagent/api";
 import { makeKernel } from "./helpers.ts";
@@ -45,6 +45,39 @@ describe("control API", () => {
       payload: { processes: [{ id: "a", role: "x", goal: "y", dependsOn: ["a"] }] },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it("lists models and runs a job on the model it picks", async () => {
+    const { kernel, llm } = makeKernel();
+    vi.spyOn(llm, "listModels").mockResolvedValue([
+      { id: "mock-llm", name: "Mock" },
+      { id: "mock-small", name: "Mock small" },
+    ]);
+    const seen: (string | undefined)[] = [];
+    const complete = llm.complete.bind(llm);
+    vi.spyOn(llm, "complete").mockImplementation((req, opts) => {
+      seen.push(opts?.model);
+      return complete(req, opts);
+    });
+    kernel.start();
+    app = await buildServer(kernel);
+
+    const models = (await app.inject({ method: "GET", url: "/models" })).json();
+    expect(models).toMatchObject({ provider: "mock", default: "mock-llm" });
+    expect(models.models.map((m: { id: string }) => m.id)).toEqual(["mock-llm", "mock-small"]);
+
+    const bad = await app.inject({ method: "POST", url: "/jobs", payload: { model: "nope", process: { role: "r", goal: "g" } } });
+    expect(bad.statusCode).toBe(400);
+
+    const res = await app.inject({ method: "POST", url: "/jobs", payload: { model: "mock-small", process: { role: "r", goal: "g" } } });
+    expect(res.statusCode).toBe(201);
+    const { jobId } = res.json() as { jobId: string };
+    await kernel.waitForJob(jobId);
+    const calls = kernel.bus.getEvents({ jobId, limit: 1000 }).filter((e) => e.type === "LLM_CALL");
+    expect(calls.length).toBeGreaterThan(0);
+    for (const e of calls) expect((e.payload as { model: string }).model).toBe("mock-small");
+    expect(seen.every((m) => m === "mock-small")).toBe(true);
+    await kernel.stop();
   });
 });
 

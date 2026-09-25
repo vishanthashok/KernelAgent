@@ -2,6 +2,8 @@
 import { ALL_PERMS, type PermKey } from "./permissions";
 
 export interface ChatOptions {
+  /** Model id. Unset means the API's default model. */
+  model?: string;
   role: string;
   tokenBudget: number;
   perms: Record<PermKey, boolean>;
@@ -15,6 +17,8 @@ export interface ChatTurn {
   prompt: string;
   createdAt: number;
   jobId?: string;
+  /** Model the job ran on, when one was picked. */
+  model?: string;
   /** Root process of the job: its EXIT result is the answer. */
   rootPid?: string;
   /** Submission error, if the job never started. */
@@ -39,6 +43,25 @@ export const DEFAULT_OPTIONS: ChatOptions = {
 };
 
 const KEY = "kernelagent.chats";
+const MODEL_KEY = "kernelagent.model";
+
+/** The last model picked, so new chats start on it. */
+export function loadLastModel(): string | undefined {
+  try {
+    return localStorage.getItem(MODEL_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function saveLastModel(model: string | undefined): void {
+  try {
+    if (model) localStorage.setItem(MODEL_KEY, model);
+    else localStorage.removeItem(MODEL_KEY);
+  } catch {
+    // storage blocked: the choice lasts for this session only
+  }
+}
 
 export const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 

@@ -57,6 +57,18 @@ export interface Stats {
   lastSequence: number;
 }
 
+export interface ModelInfo {
+  id: string;
+  name: string;
+}
+
+export interface ModelsResponse {
+  provider: string;
+  /** The model a job runs on when it does not pick one. */
+  default: string;
+  models: ModelInfo[];
+}
+
 export interface SubmitResult {
   jobId: string;
   pids: Record<string, string>;
@@ -64,6 +76,7 @@ export interface SubmitResult {
 
 export const api = {
   stats: () => call<Stats>("/stats"),
+  models: () => call<ModelsResponse>("/models"),
   submitJob: (spec: unknown) => call<SubmitResult>("/jobs", { method: "POST", body: JSON.stringify(spec) }),
   kill: (pid: string) => call<{ killed: string[] }>(`/processes/${pid}/kill`, { method: "POST" }),
   signal: (pid: string, signal: string) =>

@@ -6,10 +6,12 @@
 import {
   estimateTokens,
   type CompletionRequest,
+  type CompleteOptions,
   type CompletionResponse,
   type ContentBlock,
   type Message,
   type ModelClient,
+  type ModelInfo,
   type ToolResultBlock,
 } from "./index.ts";
 
@@ -71,7 +73,11 @@ export class MockLLM implements ModelClient {
     this.scripts[role] = script;
   }
 
-  async complete(req: CompletionRequest, opts: { signal?: AbortSignal } = {}): Promise<CompletionResponse> {
+  async listModels(): Promise<ModelInfo[]> {
+    return [{ id: this.model, name: "Mock LLM (scripted, no key)" }];
+  }
+
+  async complete(req: CompletionRequest, opts: CompleteOptions = {}): Promise<CompletionResponse> {
     if (this.latencyMs > 0) {
       await new Promise<void>((resolve, reject) => {
         const t = setTimeout(resolve, this.latencyMs);

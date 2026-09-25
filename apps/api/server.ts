@@ -62,7 +62,21 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
 
   // ---------------------------------------------------------------- jobs
 
+  // Models the configured provider can run. The console fills its model picker from this.
+  app.get("/models", async () => ({
+    provider: kernel.llm.provider,
+    default: kernel.llm.model,
+    models: await kernel.llm.listModels(),
+  }));
+
   app.post("/jobs", async (req, reply) => {
+    const model = (req.body as { model?: unknown } | null)?.model;
+    if (typeof model === "string" && model !== kernel.llm.model) {
+      const known = await kernel.llm.listModels();
+      if (!known.some((m) => m.id === model)) {
+        return reply.code(400).send({ error: `unknown model ${model} for provider ${kernel.llm.provider}` });
+      }
+    }
     try {
       return reply.code(201).send(kernel.submitJob(req.body));
     } catch (err) {
