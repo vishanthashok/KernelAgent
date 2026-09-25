@@ -16,6 +16,7 @@ describe("integration: example workloads with MockLLM + LocalSandbox", () => {
     expect(done.status).toBe("COMPLETED");
     expect(kernel.pm.get(pids.coder!)).toMatchObject({ status: "TERMINATED", result: "2 3 5 7 11 13 17 19 23 29 31 37 41 43 47" });
     expect(sandbox.list()).toEqual([]);
+    expect(kernel.repos.artifacts.list({ jobId }).map((a) => a.path)).toEqual(["primes.py", "primes.txt"]);
 
     const events = kernel.bus.getEvents({ jobId });
     for (let i = 1; i < events.length; i++) expect(events[i]!.sequence).toBeGreaterThan(events[i - 1]!.sequence);
@@ -45,6 +46,8 @@ describe("integration: example workloads with MockLLM + LocalSandbox", () => {
       "SYSCALL EXIT",
       "PROCESS_EXIT",
       "STATE RUNNING->TERMINATED",
+      "ARTIFACT", // /output/primes.py
+      "ARTIFACT", // /output/primes.txt
     ]);
   });
 

@@ -100,3 +100,9 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **`/output/` is the hand-back folder.** Only files there are kept after a process ends. This keeps artifact storage bounded (20 files, 10 MB each per process) and makes intent explicit. Files are stored as SQLite BLOBs in `artifacts`, next to the event log.
 - **`ARTIFACT` is a new event type** beyond the brief's list. It carries metadata only. The bytes live in the `artifacts` table.
 - **A job completes after cleanup.** Job status flips to COMPLETED or FAILED only once every exited process's files are saved and its sandbox is destroyed, so the console never shows a finished job with files still missing.
+
+## Chat
+
+- **One message, one job.** The kernel has no conversation concept, so the chat maps each user message onto a new single-process job. Follow-ups carry the earlier turns inside the goal (last 8 turns, 12k characters). This keeps the kernel unchanged and makes every turn independently replayable. The cost is that each turn gets a fresh sandbox.
+- **Chats are stored in localStorage.** They are per browser and not synced. Job data itself stays in the server's event log, so a chat's answers and files reappear as long as the API still has those jobs.
+- **Routes.** `/` is the chat, `/console` is the monitor. Both use the same `useKernel()` stream.

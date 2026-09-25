@@ -17,9 +17,9 @@ print(" ".join(str(p) for p in primes(15)))
 export const scripts: Record<string, MockScript> = {
   coder: [
     { text: "I'll write the program first.", tool: "FS_WRITE", input: { path: "/primes.py", content: PROGRAM } },
-    { tool: "EXEC", input: { cmd: "python3 primes.py > out.txt" } },
+    { tool: "EXEC", input: { cmd: "mkdir -p output && python3 primes.py > output/primes.txt && cp primes.py output/" } },
     { text: "The program ran. Checkpointing before reading the output.", tool: "CHECKPOINT", input: { note: "primes.py written and executed" } },
-    { tool: "FS_READ", input: { path: "/out.txt" } },
+    { tool: "FS_READ", input: { path: "/output/primes.txt" } },
     (ctx) => ({ tool: "EXIT", input: { result: (ctx.lastToolResult ?? "").trim() } }),
   ],
 };

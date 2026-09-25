@@ -101,6 +101,13 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
    - A kernel restart fails in-flight processes instead of resuming them.
 5. **Roadmap** (from the README): `FETCH` syscall gated by `NET`, sandbox filesystem snapshots at checkpoints, streaming model calls, resume after restart, per-job concurrency quotas, richer approval policies.
 
+## Chat
+
+- `/` is the chat (`apps/console/components/chat/*`), `/console` is the monitor (`components/Console.tsx`).
+- Each user message is one job with one process. With "Include conversation history" on, `lib/chats.ts` `buildGoal()` prepends the last 8 turns (12k chars max) to the goal. Each turn gets a fresh sandbox, so earlier files are not available to later turns.
+- Conversations live in the browser's `localStorage` (`kernelagent.chats`), not on the server.
+- `lib/steps.ts` turns a job's events into the step list shown in the thread. `lib/permissions.ts` is shared by the chat and the New Job modal.
+
 ## Output and files
 
 - The console's **Output** tab (default tab) shows each process's EXIT result as the answer, and download cards for files.

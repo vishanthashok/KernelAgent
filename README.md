@@ -157,7 +157,8 @@ Each process has a FIFO mailbox stored in SQLite. `SEND` queues a message for a 
 ## Observability
 
 - **Event log.** SQLite, append-only (triggers block UPDATE and DELETE), with a monotonic sequence. Each `LLM_CALL` stores the full request and response. `packages/kernel/replay.ts` rebuilds every process from the log, and a test checks it against the live table field by field.
-- **Console.** Processes, Task Graph, IPC, Sandboxes, and Traces tabs, a live event stream, and a process inspector. The `+ New Job` button opens a prompt box: type a goal, pick permissions, and run it as an agent, or launch one of the examples. Traces rewinds a job to any sequence and shows what the model saw and said.
+- **Chat.** The console opens on a chat view like Claude or ChatGPT (`/`). Each message runs as an agent job. The thread shows the agent's steps live, the answer as Markdown, download cards for `/output/` files, and inline Approve / Deny when a command needs approval. **Advanced** under the composer sets role, token budget, permissions, the approval gate, and whether earlier turns are sent as context.
+- **Console.** The monitor lives at `/console`: Output, Processes, Task Graph, IPC, Sandboxes, and Traces tabs, a live event stream, and a process inspector. The `+ New Job` button opens a prompt box: type a goal, pick permissions, and run it as an agent, or launch one of the examples. Traces rewinds a job to any sequence and shows what the model saw and said.
 - **OpenTelemetry.** Spans for each job, process run, LLM call, syscall, and scheduler dispatch. LLM and syscall spans nest under their process run, which nests under its job. Metrics cover processes by state, tokens, cost, queue depth, and rate-limiter saturation. The console exporter is the default. Set `OTEL_EXPORTER_OTLP_ENDPOINT` for OTLP, or `OTEL_SDK_DISABLED=true` to turn it off.
 - **CPU\*** in the console is runtime utilization, the share of a process's life spent `RUNNING`. It is not real CPU.
 
@@ -206,16 +207,16 @@ curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/js
 
 Two workloads live in `examples/`. Each has a `job.json` and a `mock-script.ts` that makes the mock model take plausible steps. With a real provider the model decides the steps itself.
 
-**coding-task.** One `coder` process writes `/primes.py`, runs it with `EXEC`, checkpoints, reads `/out.txt`, and exits with the output.
+**coding-task.** One `coder` process writes `/primes.py`, runs it with `EXEC`, saves the output and the script to `/output/` (both come back as downloads), checkpoints, reads the output, and exits with it.
 
 ```
 $ pnpm example:coding    # abbreviated: timestamps and some events removed
     5 PID 101  STATE_CHANGE      READY -> RUNNING (DISPATCH)
     6 PID 101  LLM_CALL          mock-llm in=655 out=98
     7 PID 101  SYSCALL           FS_WRITE   /primes.py           ok
-    9 PID 101  SYSCALL           EXEC       python3 primes.py > out.txt ok
+    9 PID 101  SYSCALL           EXEC       mkdir -p output && python3 primes.py > output/primes.txt ok
    11 PID 101  CHECKPOINT        note="primes.py written and executed" atSequence=10
-   14 PID 101  SYSCALL           FS_READ    /out.txt             ok
+   14 PID 101  SYSCALL           FS_READ    /output/primes.txt   ok
    17 PID 101  PROCESS_EXIT      result="2 3 5 7 11 13 17 19 23 29 31 37 41 43 47"
    18 PID 101  STATE_CHANGE      RUNNING -> TERMINATED (EXIT)
 ```

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useKernel, useNow } from "@/lib/useKernel";
 import { hhmmss } from "@/lib/format";
 import { ProcessTable } from "./ProcessTable";
@@ -86,12 +87,17 @@ export function Console() {
             </button>
           ))}
         </div>
-        <div className="shrink-0 font-mono text-sm font-semibold tracking-[0.35em] text-neutral-950">KERNELAGENT</div>
+        <Link href="/" className="shrink-0 font-mono text-sm font-semibold tracking-[0.35em] text-neutral-950" title="Back to chat">
+          KERNELAGENT
+        </Link>
         <div className="flex flex-1 items-center justify-end gap-4">
           <span className="hidden items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] sm:flex">
             <span className={`h-2 w-2 rounded-full ${k.connected ? "bg-emerald-500" : "bg-red-500"}`} />
             {k.connected ? "live" : "offline"}
           </span>
+          <Link href="/" className="font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-600 hover:text-neutral-950">
+            Chat
+          </Link>
           <button onClick={() => setNewJob(true)} className="pill pill-dark text-sm">
             New Job
           </button>

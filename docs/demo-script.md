@@ -19,7 +19,7 @@ Record a 1500×900 browser window at http://localhost:3000. Keep a terminal visi
 2. **Research pipeline (0:10).** The planner (priority 10) is scheduled first. The researchers call `RECEIVE`. A researcher that asks before its question arrives shows `WAITING receive`: blocked, holding no slot. Point at the event stream: `send -> PID 102`, then `WAITING -> READY (MESSAGE)`, then the researchers `SLEEP` (another `WAITING`).
 3. **Task Graph (0:35).** Select the research job. Researchers feed the reviewer. When the reviewer turns green it tries to `SPAWN` a fact-checker with `EXEC`. Point at `syscall(SPAWN via SPAWN) DENIED` in the stream: the reviewer does not hold `EXEC`, so the child cannot get it. The second `SPAWN` succeeds, and a dashed edge appears to `fact-checker`.
 4. **Inspector (1:00).** Click the fact-checker's PID. Capabilities show `SEND(<reviewer pid>)` only: attenuated. Show the token meter and the event log.
-5. **Coding task (1:15).** Processes tab. The coder writes `/primes.py`, runs it with `EXEC`, checkpoints, reads `/out.txt`, and exits with `2 3 5 7 11 ...`. Sandboxes tab: its sandbox goes `active` then `destroyed`.
+5. **Coding task (1:15).** Processes tab. The coder writes `/primes.py`, runs it with `EXEC`, checkpoints, saves `primes.txt` and `primes.py` to `/output/`, and exits with `2 3 5 7 11 ...`. Sandboxes tab: its sandbox goes `active` then `destroyed`.
 6. **Approval gate (1:40).** The third job's coder stops at `WAITING approval`. Open its inspector and press **approve**. `EXEC` runs and the job completes.
 7. **Kill (2:00).** In the terminal:
    ```bash

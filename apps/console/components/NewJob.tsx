@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { api, type SubmitResult } from "@/lib/api";
+import { ALL_PERMS, buildCapabilities, PERMISSIONS, type PermKey } from "@/lib/permissions";
 import codingTask from "../../../examples/coding-task/job.json";
 import researchPipeline from "../../../examples/research-pipeline/job.json";
 import approvalGate from "../../../examples/approval-gate.json";
@@ -11,14 +12,7 @@ const EXAMPLES = [
   { label: "approval gate", spec: approvalGate, hint: "waits for you to approve a command" },
 ];
 
-const PERMISSIONS = [
-  { key: "files", label: "read and write files", caps: [{ type: "FS_READ" }, { type: "FS_WRITE" }] },
-  { key: "exec", label: "run shell commands", caps: [{ type: "EXEC" }] },
-  { key: "spawn", label: "start sub-agents", caps: [{ type: "SPAWN" }] },
-  { key: "ipc", label: "send and receive messages", caps: [{ type: "SEND" }, { type: "RECEIVE" }] },
-] as const;
 
-type PermKey = (typeof PERMISSIONS)[number]["key"];
 
 export function NewJob({
   provider,
@@ -32,7 +26,7 @@ export function NewJob({
   const [prompt, setPrompt] = useState("");
   const [role, setRole] = useState("assistant");
   const [budget, setBudget] = useState(60000);
-  const [perms, setPerms] = useState<Record<PermKey, boolean>>({ files: true, exec: true, spawn: true, ipc: true });
+  const [perms, setPerms] = useState<Record<PermKey, boolean>>(ALL_PERMS);
   const [approval, setApproval] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -52,9 +46,7 @@ export function NewJob({
   const runPrompt = () => {
     const goal = prompt.trim();
     if (!goal) return setError("type a prompt first");
-    const capabilities = PERMISSIONS.filter((p) => perms[p.key]).flatMap((p) =>
-      p.caps.map((c) => (c.type === "EXEC" && approval ? { ...c, requiresApproval: true } : { ...c })),
-    );
+    const capabilities = buildCapabilities(perms, approval);
     void submit({
       name: goal.length > 40 ? goal.slice(0, 40) + "…" : goal,
       process: { role: role.trim() || "assistant", goal, capabilities, tokenBudget: budget },
