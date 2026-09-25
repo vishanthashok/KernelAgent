@@ -20,6 +20,8 @@ export interface MockContext {
   jobId: string;
   turn: number;
   messages: Message[];
+  /** Other processes in the same job. */
+  peers: { pid: string; role: string }[];
   /** Text of the most recent tool_result, if any. */
   lastToolResult?: string;
   lastToolError?: boolean;
@@ -91,6 +93,7 @@ export class MockLLM implements ModelClient {
       jobId: meta.jobId,
       turn,
       messages: req.messages,
+      peers: meta.peers ?? [],
       ...(tr ? { lastToolResult: tr.content, lastToolError: tr.is_error === true } : {}),
     };
 

@@ -1,3 +1,5 @@
+import { isAbsolute, resolve } from "node:path";
+
 // Kernel configuration. All values can be overridden by env vars or constructor options.
 
 export interface ModelPrice {
@@ -47,6 +49,16 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): KernelConfi
       requestsPerMinute: num(env.RATE_LIMIT_RPM, 50),
       tokensPerMinute: num(env.RATE_LIMIT_TPM, 200_000),
     },
-    dbPath: env.KERNEL_DB_PATH ?? "./data/kernelagent.db",
+    dbPath: resolveDbPath(env),
   };
+}
+
+/**
+ * Relative paths resolve against the directory the user ran the command from. pnpm sets
+ * INIT_CWD to it, even when a script runs inside a workspace package directory.
+ */
+function resolveDbPath(env: NodeJS.ProcessEnv): string {
+  const p = env.KERNEL_DB_PATH ?? "data/kernelagent.db";
+  if (p === ":memory:" || isAbsolute(p)) return p;
+  return resolve(env.INIT_CWD ?? process.cwd(), p);
 }

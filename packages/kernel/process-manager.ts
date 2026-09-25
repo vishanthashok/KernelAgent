@@ -58,6 +58,7 @@ export class ProcessManager {
   }
 
   create(init: Omit<Process, "status" | "createdAt" | "tokensUsed" | "costUsd" | "retryCount" | "runtimeMs">): Process {
+    const t = this.now();
     if (this.table.has(init.pid)) throw new Error(`pid ${init.pid} already exists`);
     const p: Process = {
       ...init,
@@ -66,7 +67,7 @@ export class ProcessManager {
       costUsd: 0,
       retryCount: 0,
       runtimeMs: 0,
-      createdAt: this.now(),
+      createdAt: t,
     };
     this.table.set(p.pid, p);
     this.repo.upsert(p);
@@ -80,7 +81,7 @@ export class ProcessManager {
       dependsOn: p.dependsOn,
       maxRetries: p.maxRetries,
       timeoutMs: p.timeoutMs,
-    });
+    }, t);
     return { ...p };
   }
 
@@ -157,6 +158,7 @@ export class ProcessManager {
     }
     if (to === "TERMINATED" || to === "FAILED") p.completedAt = t;
     if (to === "READY") delete p.completedAt;
+    if (to === "READY" && from === "FAILED") delete p.error;
     if (opts.error !== undefined) p.error = opts.error;
 
     this.repo.upsert(p);
@@ -165,7 +167,7 @@ export class ProcessManager {
       to,
       ...(opts.reason ? { reason: opts.reason } : {}),
       ...(opts.error ? { error: opts.error } : {}),
-    });
+    }, t);
 
     const snapshot = { ...p };
     for (const h of this.hooks) h({ process: snapshot, from, to, ...(opts.reason ? { reason: opts.reason } : {}) });

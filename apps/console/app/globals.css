@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  --font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --color-term-bg: #0b0d0e;
+  --color-term-panel: #111416;
+  --color-term-line: #22282b;
+  --color-term-fg: #c9d1d3;
+  --color-term-dim: #6b777c;
+  --color-term-accent: #7fd1b9;
+}
+
+html,
+body {
+  background: var(--color-term-bg);
+  color: var(--color-term-fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+::selection {
+  background: #2c4b43;
+}
+
+input[type="range"] {
+  accent-color: var(--color-term-accent);
+}

@@ -14,8 +14,8 @@ export class EventBus {
     private now: () => number = Date.now,
   ) {}
 
-  emit<P>(type: KernelEventType, jobId: string, pid: string | undefined, payload: P): KernelEvent<P> {
-    const timestamp = this.now();
+  emit<P>(type: KernelEventType, jobId: string, pid: string | undefined, payload: P, at?: number): KernelEvent<P> {
+    const timestamp = at ?? this.now();
     const sequence = this.repo.append({ jobId, ...(pid ? { pid } : {}), type, payload, timestamp });
     const event: KernelEvent<P> = { sequence, jobId, ...(pid ? { pid } : {}), type, payload, timestamp };
     for (const l of this.listeners) {

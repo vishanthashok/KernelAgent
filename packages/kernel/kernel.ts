@@ -6,6 +6,7 @@ import { createRepositories, type Repositories } from "@kernelagent/db";
 import { Channel, Mailbox } from "@kernelagent/ipc";
 import { estimateTokens, type CompletionRequest, type CompletionResponse, type ModelClient } from "@kernelagent/llm";
 import type { SandboxAdapter } from "@kernelagent/sandbox";
+import { context, registerKernelMetrics, startSpan, withSpan, type Context, type KernelMetrics, type Span } from "@kernelagent/telemetry";
 import { CapabilityManager } from "./capabilities.ts";
 import { configFromEnv, costUsd, type KernelConfig } from "./config.ts";
 import { EventBus } from "./event-bus.ts";
@@ -102,6 +103,8 @@ export class Kernel {
   private nextPid: number;
   private watchdog?: NodeJS.Timeout;
   private generations = new Map<string, number>();
+  private jobSpans = new Map<string, { span: Span; ctx: Context }>();
+  readonly metrics: KernelMetrics;
 
   constructor(opts: KernelOptions) {
     this.config = { ...configFromEnv(), ...(opts.config ?? {}) };
@@ -126,6 +129,7 @@ export class Kernel {
       canDispatch: () => this.resources.limiter(this.llm.provider).canDispatch(),
       onSchedule: (p, effectivePriority) => {
         this.resources.limiter(this.llm.provider).reserve(p.pid);
+        startSpan("scheduler.dispatch", { "kernel.pid": p.pid, "kernel.job_id": p.jobId, "kernel.effective_priority": effectivePriority }, this.jobSpans.get(p.jobId)?.ctx).span.end();
         this.bus.emit("PROCESS_SCHEDULED", p.jobId, p.pid, {
           priority: p.priority,
           effectivePriority,
@@ -137,9 +141,22 @@ export class Kernel {
     });
     this.pm.onTransition((t) => this.onTransition(t));
     this.channel = new Channel(new Mailbox(this.repos.messages, this.now), {
-      onDeliver: (m) => (this.waitingOn(m.toPid) === "RECEIVE" ? this.wake(m.toPid, undefined, "MESSAGE") : false),
+      onDeliver: (m) => {
+        const waiting = this.waitingOn(m.toPid) === "RECEIVE";
+        this.bus.emit("MESSAGE", m.jobId, m.fromPid, { id: m.id, from: m.fromPid, to: m.toPid, body: m.body, wakes: waiting });
+        return waiting ? this.wake(m.toPid, undefined, "MESSAGE") : false;
+      },
     });
     this.syscalls = new SyscallDispatcher(this);
+    this.metrics = registerKernelMetrics({
+      processesByState: () => {
+        const out: Record<string, number> = {};
+        for (const p of this.pm.list()) out[p.status] = (out[p.status] ?? 0) + 1;
+        return out;
+      },
+      queueDepth: () => this.scheduler.queueDepth(),
+      rateLimiterSaturation: () => this.resources.limiter(this.llm.provider).saturation(),
+    });
 
     this.pm.recoverOrphans();
     for (const j of this.repos.jobs.list()) if (j.status === "RUNNING") this.repos.jobs.setStatus(j.id, "FAILED");
@@ -182,6 +199,7 @@ export class Kernel {
       ...(spec.tokenBudget !== undefined ? { tokenBudget: spec.tokenBudget } : {}),
     };
     this.jobs.set(jobId, job);
+    this.jobSpans.set(jobId, startSpan("job", { "kernel.job_id": jobId, "kernel.job_name": spec.name ?? "" }));
     this.repos.jobs.insert(job);
     this.bus.emit("JOB_SUBMITTED", jobId, undefined, { spec });
 
@@ -294,10 +312,27 @@ export class Kernel {
     const started = this.now();
     const fullReq: CompletionRequest = {
       ...req,
-      metadata: { pid: proc.pid, role: proc.role, goal: proc.goal, jobId: proc.jobId },
+      metadata: {
+        pid: proc.pid,
+        role: proc.role,
+        goal: proc.goal,
+        jobId: proc.jobId,
+        peers: this.pm.list({ jobId: proc.jobId }).filter((p) => p.pid !== proc.pid).map((p) => ({ pid: p.pid, role: p.role })),
+      },
     };
-    const res = await this.llm.complete(fullReq, { signal: h.signal });
+    const res = await withSpan(
+      "llm.call",
+      { "kernel.pid": proc.pid, "llm.provider": this.llm.provider, "llm.model": this.llm.model },
+      async (span) => {
+        const r = await this.llm.complete(fullReq, { signal: h.signal });
+        span.setAttributes({ "llm.input_tokens": r.inputTokens, "llm.output_tokens": r.outputTokens });
+        return r;
+      },
+    );
     this.assertLive(h);
+    const attrs = { provider: this.llm.provider, model: this.llm.model, role: proc.role };
+    this.metrics.tokens(res.inputTokens + res.outputTokens, attrs);
+    this.metrics.cost(costUsd(this.llm.model, res.inputTokens, res.outputTokens), attrs);
     limiter.reconcile(estimate, res.inputTokens + res.outputTokens);
 
     this.bus.emit("LLM_CALL", proc.jobId, proc.pid, {
@@ -309,6 +344,7 @@ export class Kernel {
       outputTokens: res.outputTokens,
       costUsd: costUsd(this.llm.model, res.inputTokens, res.outputTokens),
       durationMs: this.now() - started,
+      ...(proc.sandboxId ? { sandboxId: proc.sandboxId } : {}),
     });
 
     const violation = this.resources.charge(h.pid, this.llm.model, res.inputTokens, res.outputTokens);
@@ -440,7 +476,7 @@ export class Kernel {
       }
       case "retry": {
         if (p.status !== "FAILED") return { ok: false, message: `process is ${p.status}, not FAILED` };
-        this.pm.update(pid, { retryCount: p.retryCount + 1, startedAt: undefined, error: undefined });
+        this.pm.update(pid, { retryCount: p.retryCount + 1, startedAt: undefined });
         this.pm.transition(pid, "READY", { reason: "SIGNAL_RETRY" });
         const job = this.jobs.get(p.jobId);
         if (job && job.status !== "RUNNING") {
@@ -501,9 +537,19 @@ export class Kernel {
       ...(resume ? { resume } : {}),
     };
 
-    Promise.resolve()
-      .then(() => this.beforeRun(handle))
-      .then(() => this.runner!.run(handle))
+    const run = startSpan(
+      "process.run",
+      { "kernel.pid": p.pid, "kernel.role": p.role, "kernel.generation": generation, "kernel.resumed": !!resume },
+      this.jobSpans.get(p.jobId)?.ctx,
+    );
+    // Run the loop inside the process span so LLM and syscall spans nest under it, across awaits.
+    context
+      .with(run.ctx, () =>
+        Promise.resolve()
+          .then(() => this.beforeRun(handle))
+          .then(() => this.runner!.run(handle)),
+      )
+      .finally(() => run.span.end())
       .then(() => {
         // A runner that returns without EXIT ends the process with no result.
         if (this.isLive(handle)) this.exit(handle, "");
@@ -594,6 +640,12 @@ export class Kernel {
     if (!procs.every((p) => settled(p.status))) return;
     job.status = procs.every((p) => exitedSuccessfully(p)) ? "COMPLETED" : "FAILED";
     this.repos.jobs.setStatus(jobId, job.status);
+    const js = this.jobSpans.get(jobId);
+    if (js) {
+      js.span.setAttribute("kernel.job_status", job.status);
+      js.span.end();
+      this.jobSpans.delete(jobId);
+    }
     const waiters = this.jobWaiters.get(jobId) ?? [];
     this.jobWaiters.delete(jobId);
     for (const w of waiters) w({ ...job });

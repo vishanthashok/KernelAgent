@@ -17,13 +17,16 @@ function describeCap(c: Capability): string {
   return `${c.type}${c.scope ? `(${c.scope})` : ""}${c.requiresApproval ? " [needs operator approval]" : ""}`;
 }
 
-export function systemPrompt(p: Process): string {
+export function systemPrompt(p: Process, peers: Pick<Process, "pid" | "role" | "goal">[] = []): string {
   const caps = p.capabilities.length ? p.capabilities.map(describeCap).join(", ") : "none";
+  const peerLines = peers.map((q) => `  - pid ${q.pid} (${q.role}): ${q.goal}`);
   return [
     `You are process ${p.pid}, a "${p.role}" agent running inside KernelAgent, an operating-system-style kernel for AI agents.`,
     `Your only way to affect the world is the syscall tools you are given. Each call is checked against your capabilities.`,
     `Capabilities: ${caps}.`,
     `Token budget: ${p.tokenBudget} tokens in total.`,
+    ...(p.parentPid ? [`Your parent process is pid ${p.parentPid}.`] : []),
+    ...(peerLines.length ? [`Other processes in your job (address them by pid with SEND):`, ...peerLines] : []),
     ``,
     `Rules:`,
     `- Work step by step with syscalls. File paths are inside your own sandbox.`,
@@ -40,12 +43,12 @@ export class ProcessContext {
     readonly messages: Message[],
   ) {}
 
-  static fresh(p: Process): ProcessContext {
-    return new ProcessContext(systemPrompt(p), [{ role: "user", content: `Your goal: ${p.goal}` }]);
+  static fresh(p: Process, peers: Process[] = []): ProcessContext {
+    return new ProcessContext(systemPrompt(p, peers), [{ role: "user", content: `Your goal: ${p.goal}` }]);
   }
 
   /** Rebuild a context from a checkpoint snapshot, closing out the interrupted turn. */
-  static restore(p: Process, snap: ContextSnapshot, checkpointSeq: number): ProcessContext {
+  static restore(p: Process, snap: ContextSnapshot, checkpointSeq: number, peers: Process[] = []): ProcessContext {
     const messages = structuredClone(snap.messages);
     const last = messages[messages.length - 1];
     const results: ToolResultBlock[] = [...snap.partialResults];
@@ -66,7 +69,7 @@ export class ProcessContext {
       }
     }
     if (results.length) messages.push({ role: "user", content: results });
-    return new ProcessContext(systemPrompt(p), messages);
+    return new ProcessContext(systemPrompt(p, peers), messages);
   }
 
   snapshot(checkpointToolUseId: string, partialResults: ToolResultBlock[]): ContextSnapshot {

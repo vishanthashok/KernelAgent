@@ -47,7 +47,7 @@ export interface CompletionRequest {
   messages: Message[];
   tools: ToolDef[];
   /** Kernel metadata. Real providers ignore it. The mock uses it to pick a script. */
-  metadata?: { pid: string; role: string; goal: string; jobId: string };
+  metadata?: { pid: string; role: string; goal: string; jobId: string; peers?: { pid: string; role: string }[] };
 }
 
 export interface CompletionResponse {

@@ -1,0 +1,8 @@
+{
+  "name": "approval-gate",
+  "process": {
+    "role": "coder",
+    "goal": "Write a Python program /primes.py that prints the first 15 prime numbers on one line, separated by spaces. Run it with python3, save its output to /out.txt, read /out.txt back, and EXIT with the exact output. Commands need operator approval.",
+    "capabilities": [{ "type": "FS_READ" }, { "type": "FS_WRITE" }, { "type": "EXEC", "requiresApproval": true }]
+  }
+}

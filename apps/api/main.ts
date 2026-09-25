@@ -1,24 +1,36 @@
 // Boot the kernel and serve the API. Zero keys needed: MockLLM + LocalSandbox by default.
-import { Kernel } from "@kernelagent/kernel";
-import { createModelClient } from "@kernelagent/llm";
-import { Worker } from "@kernelagent/runtime";
-import { createSandbox } from "@kernelagent/sandbox";
-import { buildServer } from "./server.ts";
+import { initTelemetry } from "@kernelagent/telemetry";
+const telemetry = initTelemetry({ serviceName: "kernelagent-api" });
 
-const llm = await createModelClient();
+const { Kernel } = await import("@kernelagent/kernel");
+const { createModelClient } = await import("@kernelagent/llm");
+const { Worker } = await import("@kernelagent/runtime");
+const { createSandbox } = await import("@kernelagent/sandbox");
+const { buildServer } = await import("./server.ts");
+
+// With the mock provider, load the example scripts so example jobs submitted over HTTP run
+// their scripted syscalls. MOCK_LATENCY_MS slows the mock down so the console is watchable.
+const { exampleScripts } = await import("../../examples/scripts.ts");
+const llm = await createModelClient(process.env, { scripts: exampleScripts, latencyMs: Number(process.env.MOCK_LATENCY_MS ?? 400) });
 const sandbox = await createSandbox();
 const kernel = new Kernel({ llm, sandbox });
 kernel.attachRunner(new Worker(kernel));
 kernel.start();
 
-const app = await buildServer(kernel, { logger: true });
+const app = await buildServer(kernel, {
+  logger: process.env.API_LOG === "true",
+  ...(process.env.KERNEL_DEV_TOKEN ? { devToken: process.env.KERNEL_DEV_TOKEN } : {}),
+});
 const port = Number(process.env.PORT ?? 4000);
 await app.listen({ port, host: process.env.HOST ?? "127.0.0.1" });
-console.log(`[kernelagent] api on :${port} llm=${llm.provider}/${llm.model} db=${kernel.config.dbPath}`);
+console.log(
+  `[kernelagent] api http://localhost:${port}  llm=${llm.provider}/${llm.model}  sandbox=${sandbox.provider}  db=${kernel.config.dbPath}`,
+);
 
 const shutdown = async () => {
   await app.close();
   await kernel.stop();
+  await telemetry.shutdown();
   process.exit(0);
 };
 process.on("SIGINT", shutdown);

@@ -21,10 +21,12 @@ export async function runExecutionLoop(kernel: Kernel, h: RunHandle, opts: Execu
   const held = new Set(proc.capabilities.map((c) => c.type));
   const tools = syscallTools((t) => ALWAYS.has(t) || held.has(t as never));
 
+  // Peers are fixed at start so the system prompt stays byte-stable across turns.
+  const peers = kernel.pm.list({ jobId: proc.jobId }).filter((p) => p.pid !== proc.pid);
   const ctx =
     h.resume && h.resume.context
-      ? ProcessContext.restore(proc, h.resume.context as ContextSnapshot, h.resume.checkpointSeq)
-      : ProcessContext.fresh(proc);
+      ? ProcessContext.restore(proc, h.resume.context as ContextSnapshot, h.resume.checkpointSeq, peers)
+      : ProcessContext.fresh(proc, peers);
 
   for (let turn = 0; turn < maxTurns; turn++) {
     const res = await kernel.callModel(h, { system: ctx.system, messages: ctx.messages, tools });

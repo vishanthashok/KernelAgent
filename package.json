@@ -7,20 +7,24 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @kernelagent/console typecheck",
     "dev:api": "pnpm --filter @kernelagent/api dev",
     "dev:console": "pnpm --filter @kernelagent/console dev",
     "run-job": "tsx scripts/run-job.ts",
     "example:coding": "tsx examples/run.ts coding-task",
     "example:research": "tsx examples/run.ts research-pipeline",
-    "demo": "bash scripts/demo.sh"
+    "demo": "bash scripts/demo.sh",
+    "build:console": "pnpm --filter @kernelagent/console build"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "@opentelemetry/sdk-trace-node": "^2.11.0",
+    "ws": "^8.18.0",
+    "@types/ws": "^8.5.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

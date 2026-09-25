@@ -9,6 +9,7 @@
 //   6. emit one SYSCALL event with request, result, duration, and retry-safety class
 import { z } from "zod";
 import type { ToolDef } from "@kernelagent/llm";
+import { withSpan } from "@kernelagent/telemetry";
 import { CapabilityEscalationError, normalizePath, type CapabilityRequest } from "./capabilities.ts";
 import { CapabilitySchema } from "./job-spec.ts";
 import type { Kernel, RunHandle } from "./kernel.ts";
@@ -187,8 +188,7 @@ export const SYSCALLS: Registry = {
       if (!to || to.jobId !== from.jobId) throw new SyscallError(`no process ${a.to} in this job`);
       if (to.status === "TERMINATED" || to.status === "FAILED") throw new SyscallError(`process ${a.to} is ${to.status}`);
       const { message, woke } = k.channel.send(from.jobId, from.pid, to.pid, a.message);
-      k.bus.emit("MESSAGE", from.jobId, from.pid, { id: message.id, from: from.pid, to: to.pid, body: a.message, woke });
-      return { messageId: message.id, delivered: true };
+      return { messageId: message.id, queued: true, wokeReceiver: woke };
     },
   },
   RECEIVE: {
@@ -247,7 +247,17 @@ export function syscallTools(filter?: (t: SyscallType) => boolean): ToolDef[] {
 export class SyscallDispatcher {
   constructor(private k: Kernel) {}
 
-  async dispatch(h: RunHandle, raw: unknown, ctx: SyscallContext = {}): Promise<SyscallResult> {
+  dispatch(h: RunHandle, raw: unknown, ctx: SyscallContext = {}): Promise<SyscallResult> {
+    const type = typeof raw === "object" && raw !== null && "type" in raw ? String((raw as { type: unknown }).type) : "?";
+    return withSpan(`syscall.${type}`, { "kernel.pid": h.pid, "syscall.type": type }, async (span) => {
+      const r = await this.dispatchInner(h, raw, ctx);
+      span.setAttributes({ "syscall.ok": r.ok, ...(r.ok ? {} : { "syscall.code": r.code }) });
+      this.k.metrics.syscalls({ type, ok: r.ok, ...(r.ok ? {} : { code: r.code }) });
+      return r;
+    });
+  }
+
+  private async dispatchInner(h: RunHandle, raw: unknown, ctx: SyscallContext): Promise<SyscallResult> {
     const started = this.k.now();
     const proc = this.k.pm.require(h.pid);
     const emit = (payload: Record<string, unknown>) =>
@@ -262,7 +272,7 @@ export class SyscallDispatcher {
     }
     const request = parsed.data;
     const spec = SYSCALLS[request.type] as SyscallSpec<SyscallType>;
-    const base = { request, retrySafety: spec.retrySafety };
+    const base = { request, retrySafety: spec.retrySafety, ...(proc.sandboxId ? { sandboxId: proc.sandboxId } : {}) };
 
     // 2. capability check
     let capability: Capability | undefined;
