@@ -125,6 +125,25 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
     sandboxes: kernel.sandbox?.list() ?? [],
   }));
 
+  // ----------------------------------------------------------- artifacts
+
+  app.get<{ Querystring: { jobId?: string; pid?: string } }>("/artifacts", async (req) => ({
+    artifacts: kernel.repos.artifacts.list({
+      ...(req.query.jobId ? { jobId: req.query.jobId } : {}),
+      ...(req.query.pid ? { pid: req.query.pid } : {}),
+    }),
+  }));
+
+  app.get<{ Params: { id: string } }>("/artifacts/:id", async (req, reply) => {
+    const a = kernel.repos.artifacts.get(Number(req.params.id));
+    if (!a) return reply.code(404).send({ error: "no such artifact" });
+    const name = a.meta.path.split("/").pop() ?? "file";
+    return reply
+      .header("content-type", a.meta.mime)
+      .header("content-disposition", `attachment; filename="${name.replace(/"/g, "")}"`)
+      .send(a.data);
+  });
+
   // -------------------------------------------------------------- events
 
   app.get<{ Querystring: { sinceSeq?: string; jobId?: string; pid?: string; limit?: string } }>("/events", async (req) => {

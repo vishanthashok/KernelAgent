@@ -370,12 +370,70 @@ export class MessageRepo {
   }
 }
 
+// ---------- artifacts ----------
+
+export interface ArtifactMeta {
+  id: number;
+  jobId: string;
+  pid: string;
+  path: string;
+  mime: string;
+  size: number;
+  createdAt: number;
+}
+
+interface ArtifactRow {
+  id: number;
+  job_id: string;
+  pid: string;
+  path: string;
+  mime: string;
+  size: number;
+  created_at: number;
+  data?: Buffer;
+}
+
+const toArtifact = (r: ArtifactRow): ArtifactMeta => ({
+  id: r.id,
+  jobId: r.job_id,
+  pid: r.pid,
+  path: r.path,
+  mime: r.mime,
+  size: r.size,
+  createdAt: r.created_at,
+});
+
+export class ArtifactRepo {
+  constructor(private db: DB) {}
+
+  insert(a: Omit<ArtifactMeta, "id" | "size">, data: Uint8Array): ArtifactMeta {
+    const info = this.db
+      .prepare("INSERT INTO artifacts (job_id, pid, path, mime, size, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(a.jobId, a.pid, a.path, a.mime, data.byteLength, Buffer.from(data), a.createdAt);
+    return { ...a, id: Number(info.lastInsertRowid), size: data.byteLength };
+  }
+
+  list(q: { jobId?: string; pid?: string } = {}): ArtifactMeta[] {
+    const where: string[] = [];
+    if (q.jobId) where.push("job_id = @jobId");
+    if (q.pid) where.push("pid = @pid");
+    const sql = `SELECT id, job_id, pid, path, mime, size, created_at FROM artifacts ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY id ASC`;
+    return (this.db.prepare(sql).all({ jobId: q.jobId, pid: q.pid }) as ArtifactRow[]).map(toArtifact);
+  }
+
+  get(id: number): { meta: ArtifactMeta; data: Buffer } | undefined {
+    const r = this.db.prepare("SELECT * FROM artifacts WHERE id = ?").get(id) as ArtifactRow | undefined;
+    return r ? { meta: toArtifact(r), data: r.data! } : undefined;
+  }
+}
+
 export interface Repositories {
   db: DB;
   events: EventRepo;
   jobs: JobRepo;
   processes: ProcessRepo;
   messages: MessageRepo;
+  artifacts: ArtifactRepo;
 }
 
 export function createRepositories(path = ":memory:"): Repositories {
@@ -386,5 +444,6 @@ export function createRepositories(path = ":memory:"): Repositories {
     jobs: new JobRepo(db),
     processes: new ProcessRepo(db),
     messages: new MessageRepo(db),
+    artifacts: new ArtifactRepo(db),
   };
 }

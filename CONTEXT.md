@@ -101,6 +101,12 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
    - A kernel restart fails in-flight processes instead of resuming them.
 5. **Roadmap** (from the README): `FETCH` syscall gated by `NET`, sandbox filesystem snapshots at checkpoints, streaming model calls, resume after restart, per-job concurrency quotas, richer approval policies.
 
+## Output and files
+
+- The console's **Output** tab (default tab) shows each process's EXIT result as the answer, and download cards for files.
+- Agents hand back files by writing them to `/output/` in their sandbox. On exit, `Kernel.afterExit` copies them into the `artifacts` table via `SandboxAdapter.collectFiles`, emits `ARTIFACT` events, then destroys the sandbox. A job completes only after this cleanup (`pendingCleanups` in `kernel.ts`).
+- API: `GET /artifacts?jobId=`, `GET /artifacts/:id` (download, `?token=` works for the dev token).
+
 ## Gotchas
 
 - `KERNEL_DB_PATH` resolves against `INIT_CWD` (set by pnpm), so `pnpm dev:api` writes to `./data/` at the repo root, not `apps/api/data/`.

@@ -112,7 +112,11 @@ The process's `lastCheckpointSeq` points at this event. On retry, the loop rebui
 
 ### EXIT
 
-Records `PROCESS_EXIT {result}` and moves the process to `TERMINATED`. Its sandbox is destroyed. Dependents that were waiting on it may become `READY`.
+Records `PROCESS_EXIT {result}` and moves the process to `TERMINATED`. Dependents that were waiting on it may become `READY`.
+
+### Output files (artifacts)
+
+Before a finished process's sandbox is destroyed, the kernel copies every file under `/output/` in that sandbox into the `artifacts` table (up to 20 files, 10 MB each) and emits one `ARTIFACT {id, path, mime, size}` event per file. Everything else in the sandbox is deleted. The job only counts as complete after this step. Files are listed with `GET /artifacts?jobId=` and downloaded with `GET /artifacts/:id`. The system prompt tells the model to put files for the user in `/output/`.
 
 ## Retry safety
 

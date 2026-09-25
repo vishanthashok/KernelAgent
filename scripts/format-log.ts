@@ -26,6 +26,8 @@ function summarize(e: KernelEvent): string {
     }
     case "CHECKPOINT":
       return `note=${JSON.stringify(p.note ?? "")} atSequence=${p.atSequence}`;
+    case "ARTIFACT":
+      return `${p.path} (${p.mime}, ${p.size} B)`;
     case "BLOCKED":
       return `on ${p.reason}`;
     case "MESSAGE":

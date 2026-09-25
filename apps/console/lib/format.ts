@@ -69,6 +69,8 @@ export function describe(e: KernelEvent): string {
       return p.killed ? "exit (killed)" : `exit: ${String(p.result ?? "").slice(0, 80)}`;
     case "PROCESS_CRASH":
       return `crash: ${p.error ?? p.reason}`;
+    case "ARTIFACT":
+      return `file saved: ${p.path} (${p.size} B)`;
     case "JOB_SUBMITTED":
       return `job submitted${p.spec?.name ? ` (${p.spec.name})` : ""}`;
     default:

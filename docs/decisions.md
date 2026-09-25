@@ -94,3 +94,9 @@ Choices the brief left open, and deviations from it, with the reason for each.
 ## Console design
 
 - **Portfolio-style dashboard.** The console matches the owner's portfolio: a floating light pill nav with spaced mono labels, a large Manrope headline, white and outline pill buttons, and glass cards on a dark dusk gradient. Fonts load through `next/font/google` (Manrope for text, JetBrains Mono for data). Shared styles live as Tailwind utilities in `apps/console/app/globals.css` (`card`, `label-caps`, `pill`, `pill-light`, `pill-dark`, `pill-ghost`), and process states render with `components/StateChip.tsx`.
+
+## Output files
+
+- **`/output/` is the hand-back folder.** Only files there are kept after a process ends. This keeps artifact storage bounded (20 files, 10 MB each per process) and makes intent explicit. Files are stored as SQLite BLOBs in `artifacts`, next to the event log.
+- **`ARTIFACT` is a new event type** beyond the brief's list. It carries metadata only. The bytes live in the `artifacts` table.
+- **A job completes after cleanup.** Job status flips to COMPLETED or FAILED only once every exited process's files are saved and its sandbox is destroyed, so the console never shows a finished job with files still missing.

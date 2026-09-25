@@ -6,10 +6,10 @@
 // or write anything that user can. Use E2BSandbox (SANDBOX_PROVIDER=e2b) for isolation.
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { SandboxError, type ExecResult, type SandboxAdapter } from "./types.ts";
+import { SandboxError, type CollectedFile, type ExecResult, type SandboxAdapter } from "./types.ts";
 
 export interface LocalSandboxOptions {
   root?: string;
@@ -100,6 +100,30 @@ export class LocalSandbox implements SandboxAdapter {
         resolvePromise({ stdout, stderr, exitCode: code ?? (signal ? 137 : 1) });
       });
     });
+  }
+
+  async collectFiles(sandboxId: string, dir: string, limits: { maxFiles: number; maxBytes: number }): Promise<CollectedFile[]> {
+    const root = this.resolvePath(sandboxId, dir);
+    const out: CollectedFile[] = [];
+    const walk = async (abs: string, rel: string): Promise<void> => {
+      let entries;
+      try {
+        entries = await readdir(abs, { withFileTypes: true });
+      } catch {
+        return; // missing directory: nothing to collect
+      }
+      for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+        if (out.length >= limits.maxFiles) return;
+        const childAbs = join(abs, e.name);
+        const childRel = rel ? `${rel}/${e.name}` : e.name;
+        if (e.isDirectory()) await walk(childAbs, childRel);
+        else if (e.isFile() && (await stat(childAbs)).size <= limits.maxBytes) {
+          out.push({ path: childRel, data: new Uint8Array(await readFile(childAbs)) });
+        }
+      }
+    };
+    await walk(root, "");
+    return out;
   }
 
   async destroy(sandboxId: string): Promise<void> {

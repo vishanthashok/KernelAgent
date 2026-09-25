@@ -62,3 +62,16 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS messages_to ON messages(to_pid, delivered, id);
+
+-- Files a process left in its sandbox's /output directory, kept after the sandbox is destroyed.
+CREATE TABLE IF NOT EXISTS artifacts (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_id      TEXT NOT NULL,
+  pid         TEXT NOT NULL,
+  path        TEXT NOT NULL,
+  mime        TEXT NOT NULL,
+  size        INTEGER NOT NULL,
+  data        BLOB NOT NULL,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS artifacts_job ON artifacts(job_id, id);

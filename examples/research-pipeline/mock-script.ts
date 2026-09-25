@@ -56,14 +56,14 @@ export const scripts: Record<string, MockScript> = {
         .map((b: any) => parse(b.content))
         .filter((r) => typeof r.message === "string" && r.from);
       const body = answers.map((a) => `- (pid ${a.from}) ${a.message}`).join("\n");
-      return { tool: "FS_WRITE", input: { path: "/report.md", content: `# Cooperative vs preemptive scheduling\n\n${body}\n` } };
+      return { tool: "FS_WRITE", input: { path: "/output/report.md", content: `# Cooperative vs preemptive scheduling\n\n${body}\n` } };
     },
     { tool: "CHECKPOINT", input: { note: "report written" } },
     {
       tool: "EXIT",
       input: {
         result:
-          "Cooperative scheduling switches only when a task yields, so it is cheap but one greedy task stalls everyone. Preemptive scheduling uses timer interrupts to bound latency, at the cost of context switches and locking. Report written to /report.md and fact-checked.",
+          "Cooperative scheduling switches only when a task yields, so it is cheap but one greedy task stalls everyone. Preemptive scheduling uses timer interrupts to bound latency, at the cost of context switches and locking. Report written to /output/report.md and fact-checked.",
       },
     },
   ],

@@ -63,6 +63,30 @@ interface RunState {
   wakeValue?: unknown;
 }
 
+/** Files a process leaves here are kept as artifacts after its sandbox is destroyed. */
+export const OUTPUT_DIR = "/output";
+const ARTIFACT_LIMITS = { maxFiles: 20, maxBytes: 10 * 1024 * 1024 };
+
+const MIME: Record<string, string> = {
+  pdf: "application/pdf",
+  md: "text/markdown; charset=utf-8",
+  txt: "text/plain; charset=utf-8",
+  html: "text/html; charset=utf-8",
+  csv: "text/csv; charset=utf-8",
+  json: "application/json",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  svg: "image/svg+xml",
+  py: "text/x-python; charset=utf-8",
+  zip: "application/zip",
+};
+
+export function mimeFor(path: string): string {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  return MIME[ext] ?? "application/octet-stream";
+}
+
 // Failure reasons that retrying cannot fix.
 const NON_RETRYABLE = new Set(["TOKEN_BUDGET_EXCEEDED", "JOB_TOKEN_BUDGET_EXCEEDED", "DEPENDENCY_FAILED", "KERNEL_RESTART"]);
 
@@ -104,6 +128,8 @@ export class Kernel {
   private watchdog?: NodeJS.Timeout;
   private generations = new Map<string, number>();
   private jobSpans = new Map<string, { span: Span; ctx: Context }>();
+  /** Per-job count of exit cleanups (artifact collection, sandbox teardown) still running. */
+  private pendingCleanups = new Map<string, number>();
   readonly metrics: KernelMetrics;
 
   constructor(opts: KernelOptions) {
@@ -582,9 +608,24 @@ export class Kernel {
     this.pm.update(p.pid, { sandboxId });
   }
 
-  /** Cleanup when a process is permanently done: destroy its sandbox. */
+  /**
+   * Cleanup when a process is permanently done: keep its /output files as artifacts,
+   * then destroy its sandbox.
+   */
   private async afterExit(p: Process): Promise<void> {
-    if (this.sandbox && p.sandboxId) await this.sandbox.destroy(p.sandboxId);
+    if (!this.sandbox || !p.sandboxId) return;
+    try {
+      const files = await this.sandbox.collectFiles(p.sandboxId, OUTPUT_DIR, ARTIFACT_LIMITS);
+      for (const f of files) {
+        const meta = this.repos.artifacts.insert(
+          { jobId: p.jobId, pid: p.pid, path: f.path, mime: mimeFor(f.path), createdAt: this.now() },
+          f.data,
+        );
+        this.bus.emit("ARTIFACT", p.jobId, p.pid, { id: meta.id, path: meta.path, mime: meta.mime, size: meta.size });
+      }
+    } finally {
+      await this.sandbox.destroy(p.sandboxId);
+    }
   }
 
   private endRun(pid: string): void {
@@ -628,13 +669,22 @@ export class Kernel {
       });
       if (ready) this.pm.transition(dep.pid, "READY", { reason: "DEPENDENCIES_MET" });
     }
-    void this.afterExit(this.pm.require(p.pid)).catch((err) => console.error("[kernel] cleanup error", err));
-    this.checkJob(p.jobId);
+    // The job only completes once every exited process's files are saved and sandbox destroyed.
+    this.pendingCleanups.set(p.jobId, (this.pendingCleanups.get(p.jobId) ?? 0) + 1);
+    void this.afterExit(this.pm.require(p.pid))
+      .catch((err) => console.error("[kernel] cleanup error", err))
+      .finally(() => {
+        const left = (this.pendingCleanups.get(p.jobId) ?? 1) - 1;
+        if (left > 0) this.pendingCleanups.set(p.jobId, left);
+        else this.pendingCleanups.delete(p.jobId);
+        this.checkJob(p.jobId);
+      });
   }
 
   private checkJob(jobId: string): void {
     const job = this.jobs.get(jobId);
     if (!job || job.status !== "RUNNING") return;
+    if (this.pendingCleanups.has(jobId)) return;
     const procs = this.pm.list({ jobId });
     const settled = (s: ProcessStatus) => s === "TERMINATED" || s === "FAILED";
     if (!procs.every((p) => settled(p.status))) return;

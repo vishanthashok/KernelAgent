@@ -73,7 +73,8 @@ export type KernelEventType =
   | "BLOCKED"
   | "CHECKPOINT"
   | "PROCESS_EXIT"
-  | "PROCESS_CRASH";
+  | "PROCESS_CRASH"
+  | "ARTIFACT";
 
 export interface KernelEvent<P = unknown> {
   sequence: number;

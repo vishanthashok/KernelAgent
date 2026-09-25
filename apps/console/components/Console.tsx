@@ -10,11 +10,13 @@ import { SandboxesView } from "./SandboxesView";
 import { TracesView } from "./TracesView";
 import { Inspector } from "./Inspector";
 import { NewJob } from "./NewJob";
+import { OutputView } from "./OutputView";
 
-const TABS = ["Processes", "Task Graph", "IPC", "Sandboxes", "Traces"] as const;
+const TABS = ["Output", "Processes", "Task Graph", "IPC", "Sandboxes", "Traces"] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_BLURB: Record<Tab, string> = {
+  Output: "The answer and files for the selected job, or the latest one.",
   Processes: "Every agent is a process with a state, a budget, and a sandbox.",
   "Task Graph": "Dependencies and spawned children for the selected job.",
   IPC: "Mailboxes and the messages agents send each other.",
@@ -35,7 +37,7 @@ function Stat({ label, value, sub }: { label: string; value: React.ReactNode; su
 export function Console() {
   const k = useKernel();
   const now = useNow(1000);
-  const [tab, setTab] = useState<Tab>("Processes");
+  const [tab, setTab] = useState<Tab>("Output");
   const [jobId, setJobId] = useState<string>("all");
   const [inspect, setInspect] = useState<string>();
   const [newJob, setNewJob] = useState(false);
@@ -189,6 +191,17 @@ export function Console() {
             </label>
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
+            {tab === "Output" && (
+              <OutputView
+                jobId={graphJob}
+                jobs={k.jobs}
+                processes={[...k.processes.values()]}
+                artifacts={k.artifacts}
+                events={k.events}
+                onSelect={setInspect}
+                onNewJob={() => setNewJob(true)}
+              />
+            )}
             {tab === "Processes" && <ProcessTable processes={procs} now={now} onSelect={setInspect} onNewJob={() => setNewJob(true)} />}
             {tab === "Task Graph" && (
               <TaskGraph processes={[...k.processes.values()].filter((p) => p.jobId === graphJob)} jobId={graphJob} onSelect={setInspect} />
@@ -217,9 +230,7 @@ export function Console() {
           onSubmitted={(res) => {
             setNewJob(false);
             setJobId(res.jobId);
-            setTab("Processes");
-            const first = Object.values(res.pids)[0];
-            if (first) setInspect(first);
+            setTab("Output");
           }}
         />
       )}

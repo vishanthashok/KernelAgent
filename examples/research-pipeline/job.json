@@ -24,7 +24,7 @@
     {
       "id": "reviewer",
       "role": "reviewer",
-      "goal": "RECEIVE both research answers. SPAWN a fact-checker child that can only SEND back to you, give it both answers in its goal, and RECEIVE its verdict. Write the final report to /report.md and EXIT with a one-paragraph summary.",
+      "goal": "RECEIVE both research answers. SPAWN a fact-checker child that can only SEND back to you, give it both answers in its goal, and RECEIVE its verdict. Write the final report to /output/report.md and EXIT with a one-paragraph summary.",
       "dependsOn": ["researcher-a", "researcher-b"],
       "capabilities": [{ "type": "RECEIVE" }, { "type": "SEND" }, { "type": "SPAWN" }, { "type": "FS_WRITE" }, { "type": "FS_READ" }]
     }

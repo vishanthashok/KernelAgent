@@ -1,7 +1,7 @@
 // E2BSandbox: real isolation via E2B microVMs. Selected with SANDBOX_PROVIDER=e2b and E2B_API_KEY.
 import { posix } from "node:path";
 import { CommandExitError, Sandbox } from "@e2b/code-interpreter";
-import { SandboxError, type ExecResult, type SandboxAdapter } from "./types.ts";
+import { SandboxError, type CollectedFile, type ExecResult, type SandboxAdapter } from "./types.ts";
 
 // Commands run in this directory, and every sandbox path is rooted here.
 const WORKDIR = "/home/user";
@@ -55,6 +55,25 @@ export class E2BSandbox implements SandboxAdapter {
       if (err instanceof CommandExitError) return { stdout: err.stdout, stderr: err.stderr, exitCode: err.exitCode };
       throw err;
     }
+  }
+
+  async collectFiles(id: string, dir: string, limits: { maxFiles: number; maxBytes: number }): Promise<CollectedFile[]> {
+    const sbx = this.sbx(id);
+    const root = this.path(dir);
+    let entries;
+    try {
+      entries = await sbx.files.list(root, { depth: 10 });
+    } catch {
+      return []; // missing directory: nothing to collect
+    }
+    const out: CollectedFile[] = [];
+    for (const e of entries.sort((a, b) => a.path.localeCompare(b.path))) {
+      if (out.length >= limits.maxFiles) break;
+      if (e.type !== "file" || e.size > limits.maxBytes) continue;
+      const data = await sbx.files.read(e.path, { format: "bytes" });
+      out.push({ path: e.path.slice(root.length).replace(/^\/+/, ""), data });
+    }
+    return out;
   }
 
   async destroy(id: string): Promise<void> {

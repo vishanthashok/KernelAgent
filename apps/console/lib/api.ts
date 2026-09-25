@@ -5,8 +5,13 @@ const TOKEN = process.env.NEXT_PUBLIC_KERNEL_DEV_TOKEN;
 export const wsUrl = (sinceSeq: number) =>
   `${API_URL.replace(/^http/, "ws")}/events/stream?sinceSeq=${sinceSeq}${TOKEN ? `&token=${encodeURIComponent(TOKEN)}` : ""}`;
 
+/** Download link for a file an agent left in /output. */
+export const artifactUrl = (id: number) => `${API_URL}/artifacts/${id}${TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ""}`;
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       ...(init.body ? { "content-type": "application/json" } : {}),
@@ -14,6 +19,9 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init.headers,
     },
   });
+  } catch {
+    throw new Error(`Can't reach the API at ${API_URL}. Check that it is running and that NEXT_PUBLIC_API_URL points to it.`);
+  }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((body as { error?: string; message?: string }).error ?? (body as { message?: string }).message ?? res.statusText);
   return body as T;

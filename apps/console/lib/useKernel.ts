@@ -24,6 +24,15 @@ export interface IpcMessage {
   receivedAt?: number;
 }
 
+export interface Artifact {
+  id: number;
+  jobId: string;
+  pid: string;
+  path: string;
+  mime: string;
+  size: number;
+}
+
 export interface KernelState {
   connected: boolean;
   stats?: Stats;
@@ -31,6 +40,7 @@ export interface KernelState {
   processes: Map<string, ReplayedProcess>;
   jobs: JobInfo[];
   messages: IpcMessage[];
+  artifacts: Artifact[];
   lastSequence: number;
   version: number;
 }
@@ -43,6 +53,7 @@ export function useKernel(): KernelState {
     processes: new Map<string, ReplayedProcess>(),
     jobs: [] as JobInfo[],
     messages: new Map<number, IpcMessage>(),
+    artifacts: [] as Artifact[],
     lastSequence: 0,
   });
   const [version, setVersion] = useState(0);
@@ -64,6 +75,8 @@ export function useKernel(): KernelState {
       applyEvent(s.processes, e);
       const p = e.payload as Record<string, any>;
       if (e.type === "JOB_SUBMITTED") s.jobs.push({ id: e.jobId, name: p.spec?.name, submittedAt: e.timestamp, firstSeq: e.sequence });
+      if (e.type === "ARTIFACT" && e.pid)
+        s.artifacts.push({ id: p.id, jobId: e.jobId, pid: e.pid, path: p.path, mime: p.mime, size: p.size });
       if (e.type === "MESSAGE")
         s.messages.set(p.id, { id: p.id, jobId: e.jobId, from: p.from, to: p.to, body: String(p.body), sentAt: e.timestamp, sequence: e.sequence });
       if (e.type === "SYSCALL" && p.request?.type === "RECEIVE" && p.ok) {
@@ -120,6 +133,7 @@ export function useKernel(): KernelState {
     processes: s.processes,
     jobs: s.jobs,
     messages: [...s.messages.values()],
+    artifacts: s.artifacts,
     lastSequence: s.lastSequence,
     version,
   };

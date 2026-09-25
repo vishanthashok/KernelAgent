@@ -220,7 +220,7 @@ $ pnpm example:coding    # abbreviated: timestamps and some events removed
    18 PID 101  STATE_CHANGE      RUNNING -> TERMINATED (EXIT)
 ```
 
-**research-pipeline.** A planner `SEND`s one question to each of two researchers, which block on `RECEIVE` until it arrives. They `SEND` answers to a reviewer that `dependsOn` both. The reviewer first tries to `SPAWN` a fact-checker with `EXEC`, which it does not hold. The kernel denies it. It then spawns one with only `SEND` back to itself, waits for the verdict, writes `/report.md`, and exits.
+**research-pipeline.** A planner `SEND`s one question to each of two researchers, which block on `RECEIVE` until it arrives. They `SEND` answers to a reviewer that `dependsOn` both. The reviewer first tries to `SPAWN` a fact-checker with `EXEC`, which it does not hold. The kernel denies it. It then spawns one with only `SEND` back to itself, waits for the verdict, writes `/output/report.md`, and exits.
 
 ```bash
 pnpm example:research

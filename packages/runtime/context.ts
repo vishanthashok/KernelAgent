@@ -33,7 +33,10 @@ export function systemPrompt(p: Process, peers: Pick<Process, "pid" | "role" | "
     `- A denied syscall means you lack the capability. Do not retry it; find another way or report it.`,
     `- After an effectful step you would not want to repeat (a write, a command, a message), call CHECKPOINT.`,
     `  If you crash and are retried, you resume from your latest checkpoint. Work after it may run again.`,
-    `- When the goal is done, call EXIT with a concise result.`,
+    `- Your EXIT result is shown to the user as your answer. Make it complete and readable.`,
+    `- To hand files to the user (a report, PDF, image, CSV), save them under /output/ in your sandbox.`,
+    `  Everything in /output/ is kept and offered for download after you exit. Other files are deleted.`,
+    `- When the goal is done, call EXIT with your answer.`,
   ].join("\n");
 }
 
