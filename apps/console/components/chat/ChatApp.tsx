@@ -22,6 +22,9 @@ import { AssistantTurn } from "./AssistantTurn";
 import { ChatSidebar } from "./ChatSidebar";
 import { Composer } from "./Composer";
 import { ApiBanner } from "../ApiBanner";
+import { StatsPanel } from "./StatsPanel";
+
+const STATS_KEY = "kernelagent.statsPanel";
 
 const SUGGESTIONS = [
   "Write a Python script that prints the first 20 prime numbers, run it, and save the script to /output/primes.py",
@@ -38,10 +41,17 @@ export function ChatApp() {
   const [draftOptions, setDraftOptions] = useState<ChatOptions>(DEFAULT_OPTIONS);
   const [sidebar, setSidebar] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 
   useEffect(() => {
+    // Open by default on wide screens, then remember the choice.
+    let pref: string | null = null;
+    try {
+      pref = localStorage.getItem(STATS_KEY);
+    } catch {}
+    setStatsOpen(pref ? pref === "open" : window.matchMedia("(min-width: 1280px)").matches);
     const last = loadLastModel();
     if (last) setDraftOptions((o) => ({ ...o, model: last }));
     const c = loadChats();
@@ -67,6 +77,13 @@ export function ChatApp() {
   const updateChat = (id: string, fn: (c: Chat) => Chat) => setChats((cs) => cs.map((c) => (c.id === id ? fn(c) : c)));
   const updateTurn = (chatId: string, turnId: string, patch: Partial<ChatTurn>) =>
     updateChat(chatId, (c) => ({ ...c, turns: c.turns.map((t) => (t.id === turnId ? { ...t, ...patch } : t)) }));
+
+  const toggleStats = (open: boolean) => {
+    setStatsOpen(open);
+    try {
+      localStorage.setItem(STATS_KEY, open ? "open" : "closed");
+    } catch {}
+  };
 
   const setOptions = (o: ChatOptions) => {
     if (o.model !== options.model) saveLastModel(o.model);
@@ -152,6 +169,14 @@ export function ChatApp() {
             ☰
           </button>
           <div className="min-w-0 flex-1 truncate text-sm font-medium text-term-dim">{active?.title ?? "New chat"}</div>
+          <button
+            onClick={() => toggleStats(!statsOpen)}
+            className={`rounded-full px-3 py-1 font-mono text-[11px] tracking-[0.2em] uppercase transition-colors ${
+              statsOpen ? "bg-white/15 text-term-fg" : "text-term-dim hover:bg-white/10 hover:text-term-fg"
+            }`}
+          >
+            Stats
+          </button>
           <Link href="/console" className="font-mono text-[11px] tracking-[0.2em] text-term-dim uppercase hover:text-term-fg">
             Console →
           </Link>
@@ -203,6 +228,20 @@ export function ChatApp() {
         </div>
         <Composer options={options} onOptions={setOptions} onSend={(t) => void send(t)} onStop={stop} running={running} stats={k.stats} models={models} keyState={modelState} />
       </main>
+
+      {statsOpen && (
+        <>
+          <div className="fixed inset-0 z-20 bg-black/60 xl:hidden" onClick={() => toggleStats(false)} />
+          <aside className="fixed inset-y-0 right-0 z-30 w-[22rem] max-w-[90vw] border-l border-white/10 bg-[#0d1116] xl:static xl:z-auto">
+            <StatsPanel
+              k={k}
+              jobIds={active?.turns.flatMap((t) => (t.jobId ? [t.jobId] : [])) ?? []}
+              currentJobId={lastTurn?.jobId}
+              onClose={() => toggleStats(false)}
+            />
+          </aside>
+        </>
+      )}
     </div>
   );
 }
