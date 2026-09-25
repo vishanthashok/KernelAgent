@@ -499,6 +499,130 @@ export class MemoryRepo {
   }
 }
 
+// ---------- metrics ----------
+
+export interface LlmCallRow {
+  ts: number;
+  jobId: string;
+  pid: string | null;
+  model: string;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+  savings: number;
+  durationMs: number;
+}
+
+export interface SyscallRow {
+  ts: number;
+  jobId: string;
+  pid: string | null;
+  type: string;
+  ok: boolean;
+  code: string | null;
+  denied: boolean;
+  error: string | null;
+}
+
+export interface StateChangeRow {
+  ts: number;
+  jobId: string;
+  pid: string | null;
+  to: string;
+  reason: string | null;
+}
+
+export interface CrashRow {
+  ts: number;
+  jobId: string;
+  pid: string | null;
+  error: string | null;
+}
+
+export interface JobSummaryRow {
+  id: string;
+  name: string | null;
+  status: string;
+  createdAt: number;
+}
+
+/**
+ * Read-only queries for the metrics dashboard. Fields are pulled out with json_extract so
+ * the large LLM request bodies never cross into JS.
+ */
+export class MetricsRepo {
+  constructor(private db: DB) {}
+
+  llmCalls(from: number, to: number): LlmCallRow[] {
+    return this.db
+      .prepare(
+        `SELECT timestamp AS ts, job_id AS jobId, pid,
+           coalesce(json_extract(payload_json, '$.model'), '?') AS model,
+           coalesce(json_extract(payload_json, '$.inputTokens'), 0) AS input,
+           coalesce(json_extract(payload_json, '$.outputTokens'), 0) AS output,
+           coalesce(json_extract(payload_json, '$.cacheReadTokens'), 0) AS cacheRead,
+           coalesce(json_extract(payload_json, '$.cacheWriteTokens'), 0) AS cacheWrite,
+           coalesce(json_extract(payload_json, '$.costUsd'), 0) AS cost,
+           coalesce(json_extract(payload_json, '$.cacheSavingsUsd'), 0) AS savings,
+           coalesce(json_extract(payload_json, '$.durationMs'), 0) AS durationMs
+         FROM events WHERE type = 'LLM_CALL' AND timestamp >= ? AND timestamp < ? ORDER BY timestamp`,
+      )
+      .all(from, to) as LlmCallRow[];
+  }
+
+  syscalls(from: number, to: number): SyscallRow[] {
+    const rows = this.db
+      .prepare(
+        `SELECT timestamp AS ts, job_id AS jobId, pid,
+           coalesce(json_extract(payload_json, '$.request.type'), '?') AS type,
+           json_extract(payload_json, '$.ok') AS ok,
+           json_extract(payload_json, '$.code') AS code,
+           json_extract(payload_json, '$.denied') AS denied,
+           substr(json_extract(payload_json, '$.error'), 1, 200) AS error
+         FROM events WHERE type = 'SYSCALL' AND timestamp >= ? AND timestamp < ? ORDER BY timestamp`,
+      )
+      .all(from, to) as (Omit<SyscallRow, "ok" | "denied"> & { ok: number | null; denied: number | null })[];
+    return rows.map((r) => ({ ...r, ok: r.ok === 1, denied: r.denied === 1 }));
+  }
+
+  /** Transitions into a terminal state: how agents ended. */
+  terminalStates(from: number, to: number): StateChangeRow[] {
+    return this.db
+      .prepare(
+        `SELECT timestamp AS ts, job_id AS jobId, pid,
+           json_extract(payload_json, '$.to') AS "to",
+           json_extract(payload_json, '$.reason') AS reason
+         FROM events WHERE type = 'STATE_CHANGE' AND timestamp >= ? AND timestamp < ?
+           AND json_extract(payload_json, '$.to') IN ('TERMINATED', 'FAILED')
+         ORDER BY timestamp`,
+      )
+      .all(from, to) as StateChangeRow[];
+  }
+
+  crashes(from: number, to: number): CrashRow[] {
+    return this.db
+      .prepare(
+        `SELECT timestamp AS ts, job_id AS jobId, pid,
+           substr(coalesce(json_extract(payload_json, '$.error'), json_extract(payload_json, '$.reason')), 1, 200) AS error
+         FROM events WHERE type = 'PROCESS_CRASH' AND timestamp >= ? AND timestamp < ? ORDER BY timestamp`,
+      )
+      .all(from, to) as CrashRow[];
+  }
+
+  jobs(ids: string[]): JobSummaryRow[] {
+    if (ids.length === 0) return [];
+    const marks = ids.map(() => "?").join(",");
+    return this.db
+      .prepare(
+        `SELECT id, json_extract(spec_json, '$.name') AS name, status, created_at AS createdAt
+         FROM jobs WHERE id IN (${marks})`,
+      )
+      .all(...ids) as JobSummaryRow[];
+  }
+}
+
 export interface Repositories {
   db: DB;
   events: EventRepo;
@@ -507,6 +631,7 @@ export interface Repositories {
   messages: MessageRepo;
   artifacts: ArtifactRepo;
   memories: MemoryRepo;
+  metrics: MetricsRepo;
 }
 
 export function createRepositories(path = ":memory:"): Repositories {
@@ -519,5 +644,6 @@ export function createRepositories(path = ":memory:"): Repositories {
     messages: new MessageRepo(db),
     artifacts: new ArtifactRepo(db),
     memories: new MemoryRepo(db),
+    metrics: new MetricsRepo(db),
   };
 }

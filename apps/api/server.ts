@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { JobSpecError, type Kernel, type KernelEvent } from "@kernelagent/kernel";
+import { buildMetrics, isRange, RANGES } from "./metrics.ts";
 
 export interface ServerOptions {
   logger?: boolean;
@@ -188,6 +189,20 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
   });
 
   // -------------------------------------------------------------- events
+
+  // --------------------------------------------------------------- metrics
+
+  // Dashboard metrics over the event log for a time range, plus live process counts.
+  app.get<{ Querystring: { range?: string } }>("/metrics", async (req, reply) => {
+    const range = req.query.range ?? "1h";
+    if (!isRange(range)) return reply.code(400).send({ error: `range must be one of ${Object.keys(RANGES).join(", ")}` });
+    const states: Record<string, number> = { NEW: 0, READY: 0, RUNNING: 0, WAITING: 0, TERMINATED: 0, FAILED: 0 };
+    for (const p of kernel.pm.list()) states[p.status] = (states[p.status] ?? 0) + 1;
+    return {
+      ...buildMetrics(kernel.repos.metrics, range, kernel.now()),
+      now: { states, running: kernel.scheduler.running(), queueDepth: kernel.scheduler.queueDepth(), maxConcurrency: kernel.config.maxConcurrency },
+    };
+  });
 
   // ---------------------------------------------------------------- memory
 

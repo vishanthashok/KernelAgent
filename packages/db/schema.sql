@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_job ON events(job_id, sequence);
 CREATE INDEX IF NOT EXISTS events_pid ON events(pid, sequence);
+-- Time-range scans by event type, for the metrics dashboard.
+CREATE INDEX IF NOT EXISTS events_type_time ON events(type, timestamp);
 
 -- Enforce append-only at the storage layer.
 CREATE TRIGGER IF NOT EXISTS events_no_update BEFORE UPDATE ON events
