@@ -34,7 +34,7 @@ Choices the brief left open, and deviations from it, with the reason for each.
 ## Persistence
 
 - **better-sqlite3, synchronous.** The event log insert is synchronous, so `sequence` is assigned before any subscriber sees the event. SQLite triggers reject UPDATE and DELETE on `events`.
-- **Default DB path** `./data/kernelagent.db` (override with `KERNEL_DB_PATH`). Tests and `scripts/run-job.ts` use `:memory:`.
+- **Default DB path** `data/kernelagent.db` (override with `KERNEL_DB_PATH`). Relative paths resolve against the directory the command was run from (`INIT_CWD` under pnpm), not the package directory pnpm switches into. Tests, `scripts/run-job.ts`, and `examples/run.ts` use `:memory:`.
 - **Extra columns:** `processes.enqueued_at`, `timeout_ms`, `runtime_ms`, `result`; `messages.job_id`.
 
 ## LLM
@@ -81,3 +81,11 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **Peers in the prompt.** The system prompt lists the other processes in the job (pid, role, goal) so a model can address SEND. The list is fixed when the run starts, so the prompt stays byte-stable across turns.
 - **Example scripts in the API.** With the mock provider, the API loads the example workloads' mock scripts and adds 400 ms of latency per call (`MOCK_LATENCY_MS`), so example jobs submitted over HTTP behave like the CLI runs and are slow enough to watch.
 - **MESSAGE events are emitted by the kernel's delivery hook**, before the receiver is woken, so the log shows the message before the `WAITING -> READY` it causes.
+
+## Reliability and presentation
+
+- **Timeouts are checked by a watchdog** on the scheduler tick interval (at least every 50 ms), not by a timer per process.
+- **Kill aborts in-flight work.** Each run has an `AbortController` and a generation number. Kill, timeout, and retry abort the signal (cancelling a pending model call or rate-limit wait) and bump the generation, so a stale loop cannot act on the process.
+- **The `retry` signal** re-queues a permanently FAILED process and sets its job back to RUNNING. Dependents already failed with `DEPENDENCY_FAILED` stay failed.
+- **A third job file, `examples/approval-gate.json`,** reuses the coding-task script with `EXEC` behind the approval gate. `pnpm demo` submits it to show the gate. It is a demo aid, not a third workload.
+- **`pnpm demo`** turns OpenTelemetry off by default so the console exporter does not flood the terminal. Set `OTEL_SDK_DISABLED=false` to keep it on.
