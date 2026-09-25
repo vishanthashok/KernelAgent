@@ -1,0 +1,43 @@
+{
+  "name": "kernelagent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev:api": "pnpm --filter @kernelagent/api dev",
+    "dev:console": "pnpm --filter @kernelagent/console dev",
+    "run-job": "tsx scripts/run-job.ts",
+    "example:coding": "tsx examples/run.ts coding-task",
+    "example:research": "tsx examples/run.ts research-pipeline",
+    "demo": "bash scripts/demo.sh"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "sharp",
+      "protobufjs"
+    ]
+  },
+  "dependencies": {
+    "@kernelagent/db": "workspace:*",
+    "@kernelagent/llm": "workspace:*",
+    "@kernelagent/sandbox": "workspace:*",
+    "@kernelagent/ipc": "workspace:*",
+    "@kernelagent/telemetry": "workspace:*",
+    "@kernelagent/kernel": "workspace:*",
+    "@kernelagent/runtime": "workspace:*",
+    "@kernelagent/api": "workspace:*"
+  }
+}

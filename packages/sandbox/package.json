@@ -1,0 +1,8 @@
+{
+  "name": "@kernelagent/sandbox",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./index.ts", "./*": "./*.ts" },
+  "dependencies": { "@e2b/code-interpreter": "^2.8.0" }
+}
