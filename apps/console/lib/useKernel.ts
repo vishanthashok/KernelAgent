@@ -36,6 +36,8 @@ export interface Artifact {
 export interface KernelState {
   connected: boolean;
   stats?: Stats;
+  /** Why the last /stats poll failed, if it did. Cleared on the next success. */
+  apiError?: string;
   events: KernelEvent[];
   processes: Map<string, ReplayedProcess>;
   jobs: JobInfo[];
@@ -59,6 +61,7 @@ export function useKernel(): KernelState {
   const [version, setVersion] = useState(0);
   const [connected, setConnected] = useState(false);
   const [stats, setStats] = useState<Stats>();
+  const [apiError, setApiError] = useState<string>();
 
   useEffect(() => {
     let ws: WebSocket | undefined;
@@ -112,7 +115,14 @@ export function useKernel(): KernelState {
     };
     raf = requestAnimationFrame(frame);
 
-    const pollStats = () => api.stats().then(setStats).catch(() => undefined);
+    const pollStats = () =>
+      api
+        .stats()
+        .then((s) => {
+          setStats(s);
+          setApiError(undefined);
+        })
+        .catch((err: Error) => setApiError(err.message));
     pollStats();
     const statsTimer = setInterval(pollStats, 2000);
 
@@ -129,6 +139,7 @@ export function useKernel(): KernelState {
   return {
     connected,
     ...(stats ? { stats } : {}),
+    ...(apiError ? { apiError } : {}),
     events: s.events,
     processes: s.processes,
     jobs: s.jobs,

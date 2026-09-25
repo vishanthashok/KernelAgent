@@ -8,6 +8,7 @@ import { useKernel } from "@/lib/useKernel";
 import { AssistantTurn } from "./AssistantTurn";
 import { ChatSidebar } from "./ChatSidebar";
 import { Composer } from "./Composer";
+import { ApiBanner } from "../ApiBanner";
 
 const SUGGESTIONS = [
   "Write a Python script that prints the first 20 prime numbers, run it, and save the script to /output/primes.py",
@@ -176,6 +177,9 @@ export function ChatApp() {
           )}
         </div>
 
+        <div className="mx-auto w-full max-w-3xl px-4">
+          <ApiBanner connected={k.connected} error={k.apiError} className="mb-2" />
+        </div>
         <Composer options={options} onOptions={setOptions} onSend={(t) => void send(t)} onStop={stop} running={running} stats={k.stats} />
       </main>
     </div>

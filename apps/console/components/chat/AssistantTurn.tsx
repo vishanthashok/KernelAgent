@@ -44,6 +44,17 @@ export function AssistantTurn({ turn, k, onRetry }: { turn: ChatTurn; k: KernelS
   }
 
   const root = turn.rootPid ? k.processes.get(turn.rootPid) : undefined;
+
+  // Before the job exists, or while the live stream is down, say so instead of a bare "Working".
+  if (!jobId || (!root && !k.connected)) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-term-dim">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+        {!jobId ? "Sending to the API…" : `Job ${jobId} started. Waiting for the live stream to reconnect…`}
+      </div>
+    );
+  }
+
   const running = !root || procs.some((p) => !done(p));
   const subs = procs.filter((p) => p.pid !== turn.rootPid);
   const files = k.artifacts.filter((a) => a.jobId === jobId);

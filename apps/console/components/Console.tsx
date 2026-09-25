@@ -11,6 +11,7 @@ import { SandboxesView } from "./SandboxesView";
 import { TracesView } from "./TracesView";
 import { Inspector } from "./Inspector";
 import { NewJob } from "./NewJob";
+import { ApiBanner } from "./ApiBanner";
 import { OutputView } from "./OutputView";
 
 const TABS = ["Output", "Processes", "Task Graph", "IPC", "Sandboxes", "Traces"] as const;
@@ -103,6 +104,8 @@ export function Console() {
           </button>
         </div>
       </nav>
+
+      <ApiBanner connected={k.connected} error={k.apiError} className="mt-3" />
 
       {/* Tabs for small screens */}
       <div className="mt-3 flex gap-2 overflow-x-auto lg:hidden">
