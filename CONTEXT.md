@@ -104,7 +104,8 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 ## Chat
 
 - `/` is the chat (`apps/console/components/chat/*`), `/console` is the monitor (`components/Console.tsx`).
-- Each user message is one job with one process. With "Include conversation history" on, `lib/chats.ts` `buildGoal()` prepends the last 8 turns (12k chars max) to the goal. Each turn gets a fresh sandbox, so earlier files are not available to later turns.
+- Each user message is one job with one process. The goal is the message alone. With "Chat memory" on, the spec sets `memoryScope` to the chat id and the process gets the `MEMORY` capability, so context comes from the chat's memory (see below), not a resent transcript. Each turn gets a fresh sandbox, so earlier files are not available to later turns.
+- Advanced options: model, effort (unset means the model default), "Sub-agents at low effort" (sets `subagentEffort`), role, token budget, permissions, approval, chat memory.
 - Conversations live in the browser's `localStorage` (`kernelagent.chats`), not on the server.
 - `lib/steps.ts` turns a job's events into the step list shown in the thread. `lib/permissions.ts` is shared by the chat and the New Job modal.
 
@@ -114,6 +115,20 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 - A user key arrives as the `x-provider-key` header. `Kernel.submitJob(spec, { apiKey })` keeps it in memory only (`jobKeys`) and drops it when the job settles. It must never reach the spec, the DB, or an event: events stream to every console. `tests/api.test.ts` checks this.
 - A job that brought a key never falls back to the server key. A retry after the key is dropped fails and asks for a resubmit.
 - The console stores the key in localStorage (`kernelagent.providerKey`) and the last picked model in `kernelagent.model`.
+
+## Chat memory
+
+- Table `memories` (not append-only), `MemoryRepo` in `packages/db/repositories.ts`. Scope = chat id.
+- `REMEMBER`/`RECALL` syscalls need `MEMORY`. When a top-level process (no parent) exits in a scoped job, `Kernel.exit` saves a `turn` entry ("User asked / Answer", clipped).
+- `Kernel.memoryContext(jobId)` picks the newest entries up to `MEMORY_PROMPT_CHARS` (6000). `runExecutionLoop` puts them in the system prompt once, at process start, so the prompt stays byte-stable for caching.
+- API: `GET /memory?scope=`, `DELETE /memory/:id`, `DELETE /memory?scope=`. Deleting a chat in the console clears its memory.
+
+## Token spend
+
+- `AnthropicClient.complete` sets top-level `cache_control: {type: "ephemeral"}`. Anything that changes the system prompt or tool list mid-process breaks the cache. Keep both fixed per process.
+- `CompletionResponse.inputTokens` is total input, cached or not. `cacheReadTokens`/`cacheWriteTokens` are the cached parts. `costUsd()` prices reads at 0.1x and writes at 1.25x input. `LLM_CALL` events carry both counts and `cacheSavingsUsd`.
+- Effort: spec `effort` for listed processes, `subagentEffort` (default `low`) for spawned ones, `Kernel.effortFor`. The Anthropic client sends it only to models matching `EFFORT_MODELS`. Haiku 4.5 rejects effort.
+- Tool results sent to the model are capped at 16k chars (`capToolResult`). Peer goals in the system prompt are clipped to 200 chars.
 
 ## Output and files
 

@@ -38,6 +38,27 @@ describe("prompt caching and cost", () => {
   });
 });
 
+describe("LLM_CALL cache fields", () => {
+  it("records cached tokens and the savings on the event", async () => {
+    const { kernel, llm } = makeKernel();
+    const complete = llm.complete.bind(llm);
+    vi.spyOn(llm, "complete").mockImplementation(async (req, opts) => ({
+      ...(await complete(req, opts)),
+      inputTokens: 1000,
+      cacheReadTokens: 800,
+      cacheWriteTokens: 0,
+    }));
+    kernel.start();
+    const { jobId } = kernel.submitJob({ process: { role: "r", goal: "g" } });
+    await kernel.waitForJob(jobId);
+    const call = kernel.bus.getEvents({ jobId, limit: 100 }).find((e) => e.type === "LLM_CALL")!.payload as Record<string, number>;
+    expect(call.cacheReadTokens).toBe(800);
+    // mock-llm: $3 per MTok input. 800 cached tokens save 0.9 * 800 * 3 / 1e6.
+    expect(call.cacheSavingsUsd).toBeCloseTo((0.9 * 800 * 3) / 1e6, 12);
+    await kernel.stop();
+  });
+});
+
 describe("effort", () => {
   it("sends effort only to models that accept it", async () => {
     const { client, create } = stubbedClient({ input_tokens: 1 });

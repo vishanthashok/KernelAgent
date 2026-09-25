@@ -8,9 +8,18 @@ export interface ChatOptions {
   tokenBudget: number;
   perms: Record<PermKey, boolean>;
   approval: boolean;
-  /** Send earlier turns with each new message so the agent keeps context. */
-  history: boolean;
+  /**
+   * Give the chat a shared memory on the API. Every agent in the chat reads and writes it,
+   * and each answer is saved to it, so follow-ups keep context without resending the transcript.
+   */
+  memory: boolean;
+  /** Reasoning effort for the main agent. Unset means the model's default. */
+  effort?: Effort;
+  /** Run sub-agents at low effort. */
+  cheapSubagents: boolean;
 }
+
+export type Effort = "low" | "medium" | "high";
 
 export interface ChatTurn {
   id: string;
@@ -39,7 +48,8 @@ export const DEFAULT_OPTIONS: ChatOptions = {
   tokenBudget: 80_000,
   perms: { ...ALL_PERMS },
   approval: false,
-  history: true,
+  memory: true,
+  cheapSubagents: true,
 };
 
 const KEY = "kernelagent.chats";
@@ -85,7 +95,13 @@ export function loadChats(): Chat[] {
   try {
     const raw = localStorage.getItem(KEY);
     const chats = raw ? (JSON.parse(raw) as Chat[]) : [];
-    return Array.isArray(chats) ? chats : [];
+    if (!Array.isArray(chats)) return [];
+    // Chats saved before memory existed had a "history" flag instead.
+    return chats.map((c) => {
+      const o = c.options as ChatOptions & { history?: boolean };
+      const { history, ...rest } = o;
+      return { ...c, options: { ...DEFAULT_OPTIONS, ...rest, memory: o.memory ?? history ?? true } };
+    });
   } catch {
     return [];
   }
@@ -102,31 +118,4 @@ export function saveChats(chats: Chat[]): void {
 export function titleFor(prompt: string): string {
   const t = prompt.replace(/\s+/g, " ").trim();
   return t.length > 48 ? t.slice(0, 48) + "…" : t;
-}
-
-const MAX_TURNS = 8;
-const MAX_CHARS = 12_000;
-
-/**
- * Build the goal for a new turn. With history on, earlier turns go first so the agent
- * keeps the thread. Oldest turns are dropped to stay within the size limit.
- */
-export function buildGoal(prompt: string, earlier: { prompt: string; answer?: string | undefined }[], history: boolean): string {
-  if (!history || earlier.length === 0) return prompt;
-  const lines: string[] = [];
-  for (const t of earlier.slice(-MAX_TURNS)) {
-    lines.push(`User: ${t.prompt}`);
-    lines.push(`Assistant: ${t.answer?.trim() || "(no answer)"}`);
-  }
-  let transcript = lines.join("\n\n");
-  if (transcript.length > MAX_CHARS) transcript = "…" + transcript.slice(-MAX_CHARS);
-  return [
-    "This is a follow-up in an ongoing conversation. Files from earlier turns are not in your sandbox.",
-    "",
-    "Conversation so far:",
-    transcript,
-    "",
-    "New message from the user:",
-    prompt,
-  ].join("\n");
 }

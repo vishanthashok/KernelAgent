@@ -54,7 +54,7 @@ export function describe(e: KernelEvent): string {
       return `syscall(${t}${via})${status}`;
     }
     case "LLM_CALL":
-      return `llm(${p.model}) in=${p.inputTokens} out=${p.outputTokens} $${Number(p.costUsd ?? 0).toFixed(5)}`;
+      return `llm(${p.model}) in=${p.inputTokens}${p.cacheReadTokens ? ` (cached ${p.cacheReadTokens})` : ""} out=${p.outputTokens} $${Number(p.costUsd ?? 0).toFixed(5)}`;
     case "PROCESS_CREATED":
       return `create ${p.role}${p.parentPid ? ` (child of ${p.parentPid})` : ""}: ${p.goal}`;
     case "PROCESS_SCHEDULED":

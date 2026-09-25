@@ -68,6 +68,10 @@ The model receives `value` as the `tool_result` content (strings as-is, objects 
 | `SLEEP` | none | `{ms}` (0 to 60000) | `{slept}` | `SAFE` | `STATE_CHANGE`, `BLOCKED` |
 | `CHECKPOINT` | none | `{note?}` | `{checkpointSeq}` | `SAFE` | `CHECKPOINT` |
 | `EXIT` | none | `{result}` | `{result}` | `TERMINAL` | `PROCESS_EXIT`, `STATE_CHANGE` |
+| `REMEMBER` | `MEMORY` | `{note}` (up to 2000 chars) | `{id, saved}` | `EFFECTFUL` | |
+| `RECALL` | `MEMORY` | `{query?, limit?}` (limit 1 to 20) | `{entries: [{id, kind, content}]}` | `SAFE` | |
+
+`REMEMBER` and `RECALL` work only in a job whose spec sets `memoryScope`. Without one they fail with `EXEC_ERROR`, and the tools are not offered to the model. Every process in the job shares the scope, spawned children included, and so does every later job with the same scope.
 
 A final model answer with no tool call is dispatched as `EXIT` with that text.
 

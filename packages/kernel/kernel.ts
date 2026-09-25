@@ -453,6 +453,8 @@ export class Kernel {
       cacheReadTokens: cache.read,
       cacheWriteTokens: cache.write,
       costUsd: cost,
+      // What prompt caching saved on this call, versus paying full price for every input token.
+      cacheSavingsUsd: Math.max(0, costUsd(model, res.inputTokens, res.outputTokens) - cost),
       durationMs: this.now() - started,
       ...(proc.sandboxId ? { sandboxId: proc.sandboxId } : {}),
     });

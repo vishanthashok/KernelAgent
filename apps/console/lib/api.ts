@@ -85,7 +85,20 @@ export interface SubmitResult {
   pids: Record<string, string>;
 }
 
+export interface MemoryEntry {
+  id: number;
+  scope: string;
+  jobId: string;
+  pid?: string;
+  kind: "note" | "turn";
+  content: string;
+  createdAt: number;
+}
+
 export const api = {
+  memory: (scope: string) => call<{ scope: string; count: number; entries: MemoryEntry[] }>(`/memory?scope=${encodeURIComponent(scope)}`),
+  deleteMemory: (id: number) => call<{ deleted: number }>(`/memory/${id}`, { method: "DELETE" }),
+  clearMemory: (scope: string) => call<{ cleared: number }>(`/memory?scope=${encodeURIComponent(scope)}`, { method: "DELETE" }),
   stats: () => call<Stats>("/stats"),
   models: () => call<ModelsResponse>("/models"),
   submitJob: (spec: unknown) => call<SubmitResult>("/jobs", { method: "POST", body: JSON.stringify(spec) }),

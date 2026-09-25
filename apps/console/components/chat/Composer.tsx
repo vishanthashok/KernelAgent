@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { ModelsResponse, Stats } from "@/lib/api";
-import type { ChatOptions } from "@/lib/chats";
+import type { ChatOptions, Effort } from "@/lib/chats";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { ModelsState, ResolvedModel } from "@/lib/useModels";
 import { maskKey, setUserKey } from "@/lib/userKey";
@@ -65,6 +65,22 @@ export function Composer({
               <span className="label-caps">Model</span>
               <ModelSelect options={options} onOptions={onOptions} models={models} className="border border-white/15 bg-black/30 px-3 py-1.5 text-sm" />
             </label>
+            <label className="flex items-center gap-3" title="Lower effort thinks less and uses fewer tokens. Default is the model's own setting.">
+              <span className="label-caps">Effort</span>
+              <select
+                value={options.effort ?? ""}
+                onChange={(e) => {
+                  const { effort: _drop, ...rest } = options;
+                  onOptions(e.target.value ? { ...rest, effort: e.target.value as Effort } : rest);
+                }}
+                className="border border-white/15 bg-black/30 px-3 py-1.5 text-sm"
+              >
+                <option value="">Default</option>
+                <option value="low">Low · cheapest</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
             <label className="flex items-center gap-3">
               <span className="label-caps">Role</span>
               <input
@@ -109,9 +125,19 @@ export function Composer({
               />
               Ask me before running commands
             </label>
-            <label className="flex cursor-pointer items-center gap-2 rounded-full border border-white/10 px-3 py-1.5 text-sm">
-              <input type="checkbox" checked={options.history} onChange={(e) => onOptions({ ...options, history: e.target.checked })} />
-              Include conversation history
+            <label
+              className="flex cursor-pointer items-center gap-2 rounded-full border border-white/10 px-3 py-1.5 text-sm"
+              title="Agents share a memory for this chat. Each answer is saved to it, so follow-ups keep context without resending the whole conversation."
+            >
+              <input type="checkbox" checked={options.memory} onChange={(e) => onOptions({ ...options, memory: e.target.checked })} />
+              Chat memory
+            </label>
+            <label
+              className="flex cursor-pointer items-center gap-2 rounded-full border border-emerald-300/30 px-3 py-1.5 text-sm text-emerald-200"
+              title="Sub-agents do narrow tasks. Running them at low effort cuts their token use."
+            >
+              <input type="checkbox" checked={options.cheapSubagents} onChange={(e) => onOptions({ ...options, cheapSubagents: e.target.checked })} />
+              Sub-agents at low effort
             </label>
           </div>
         </div>
@@ -146,7 +172,10 @@ export function Composer({
             className="max-w-[12rem] cursor-pointer truncate rounded-full border-0 bg-transparent px-2 py-1 text-xs text-term-dim hover:bg-white/10 hover:text-term-fg"
           />
           <span className="hidden font-mono text-[11px] text-term-dim sm:inline">
-            {options.role} · {perms}/4 perms · {Math.round(options.tokenBudget / 1000)}k tokens{options.approval ? " · approval on" : ""}
+            {options.role} · {perms}/4 perms · {Math.round(options.tokenBudget / 1000)}k tokens
+            {options.effort ? ` · ${options.effort} effort` : ""}
+            {options.memory ? " · memory" : ""}
+            {options.approval ? " · approval on" : ""}
           </span>
           {running ? (
             <button onClick={onStop} className="ml-auto flex h-9 w-9 items-center justify-center rounded-full bg-white text-black hover:bg-white/80" title="Stop">

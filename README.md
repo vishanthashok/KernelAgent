@@ -185,6 +185,13 @@ curl -XPOST localhost:4000/processes/101/kill
 curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/json' -d '{"signal":"approve"}'
 ```
 
+### Saving tokens
+
+- Prompt caching on every Anthropic call. An agent's later turns read the earlier prefix at a tenth of the input price. The stats panel shows the cache hit rate and the dollars saved.
+- Effort control per job. Spawned sub-agents run at low effort unless you turn that off in the chat's Advanced panel.
+- Tool output the model sees is capped at 16k chars. The event log keeps the full output.
+- Chat memory replaces resending the transcript. Each answer is saved to the chat's memory, and agents add notes with `REMEMBER` and search with `RECALL`. Every agent in the chat, sub-agents included, shares it.
+
 ### Configuration
 
 | Variable | Default | Meaning |

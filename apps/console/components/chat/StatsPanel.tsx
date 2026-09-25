@@ -1,5 +1,6 @@
 "use client";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { api, type MemoryEntry } from "@/lib/api";
 import type { ReplayedProcess } from "@kernelagent/kernel/replay";
 import type { KernelState } from "@/lib/useKernel";
 import { useNow } from "@/lib/useKernel";
@@ -15,6 +16,8 @@ interface LlmCall {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
+  cacheReadTokens: number;
+  cacheSavingsUsd: number;
   durationMs: number;
   timestamp: number;
 }
@@ -134,6 +137,7 @@ export function StatsPanel({
   jobIds,
   currentJobId,
   model,
+  chatId,
   onClose,
 }: {
   k: KernelState;
@@ -141,6 +145,8 @@ export function StatsPanel({
   jobIds: string[];
   currentJobId?: string | undefined;
   model?: ResolvedModel | undefined;
+  /** The open chat, whose memory to show. */
+  chatId?: string | undefined;
   onClose: () => void;
 }) {
   const now = useNow(1000);
@@ -159,6 +165,8 @@ export function StatsPanel({
             inputTokens: Number(p.inputTokens ?? 0),
             outputTokens: Number(p.outputTokens ?? 0),
             costUsd: Number(p.costUsd ?? 0),
+            cacheReadTokens: Number(p.cacheReadTokens ?? 0),
+            cacheSavingsUsd: Number(p.cacheSavingsUsd ?? 0),
             durationMs: Number(p.durationMs ?? 0),
             timestamp: e.timestamp,
           } satisfies LlmCall;
@@ -169,6 +177,9 @@ export function StatsPanel({
   const chatCalls = calls.filter((c) => jobs.has(c.jobId));
   const chatTokens = chatCalls.reduce((n, c) => n + c.inputTokens + c.outputTokens, 0);
   const chatCost = chatCalls.reduce((n, c) => n + c.costUsd, 0);
+  const chatInput = chatCalls.reduce((n, c) => n + c.inputTokens, 0);
+  const chatCached = chatCalls.reduce((n, c) => n + c.cacheReadTokens, 0);
+  const chatSaved = chatCalls.reduce((n, c) => n + c.cacheSavingsUsd, 0);
   const avgLatency = chatCalls.length ? chatCalls.reduce((n, c) => n + c.durationMs, 0) / chatCalls.length : 0;
   const files = k.artifacts.filter((a) => jobs.has(a.jobId)).length;
   const agents = [...k.processes.values()].filter((p) => jobs.has(p.jobId));
@@ -226,6 +237,8 @@ export function StatsPanel({
             <Metric label="Cost" value={usd(chatCost)} />
             <Metric label="Model calls" value={chatCalls.length} />
             <Metric label="Avg latency" value={avgLatency ? `${(avgLatency / 1000).toFixed(1)}s` : "–"} />
+            <Metric label="Cache hits" value={chatInput ? `${Math.round((chatCached / chatInput) * 100)}%` : "–"} />
+            <Metric label="Saved by cache" value={<span className="text-emerald-300">{usd(chatSaved)}</span>} />
             <Metric label="Agents" value={agents.length} />
             <Metric label="Files" value={files} />
           </div>
@@ -250,6 +263,8 @@ export function StatsPanel({
             </div>
           </Section>
         )}
+
+        {chatId && <MemorySection k={k} chatId={chatId} jobs={jobs} />}
 
         {current.length > 0 && (
           <Section title="Current job" right={currentJobId}>
@@ -276,5 +291,87 @@ export function StatsPanel({
         </Section>
       </div>
     </div>
+  );
+}
+
+/** The open chat's shared memory: what every agent sees at start. */
+function MemorySection({ k, chatId, jobs }: { k: KernelState; chatId: string; jobs: Set<string> }) {
+  const [data, setData] = useState<{ count: number; entries: MemoryEntry[] }>();
+  const [error, setError] = useState<string>();
+  const [open, setOpen] = useState(false);
+
+  // Memory changes when an agent calls REMEMBER or a top-level agent exits.
+  const trigger = useMemo(
+    () =>
+      k.events.filter(
+        (e) =>
+          jobs.has(e.jobId) &&
+          (e.type === "PROCESS_EXIT" || (e.type === "SYSCALL" && (e.payload as { request?: { type?: string } }).request?.type === "REMEMBER")),
+      ).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [k.version, jobs],
+  );
+
+  const load = () =>
+    api
+      .memory(chatId)
+      .then((d) => {
+        setData(d);
+        setError(undefined);
+      })
+      .catch((err: Error) => setError(err.message));
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, trigger]);
+
+  const entries = data ? [...data.entries].reverse() : [];
+  const shown = open ? entries : entries.slice(0, 4);
+
+  return (
+    <Section title="Memory" right={data ? `${data.count} ${data.count === 1 ? "entry" : "entries"}` : "…"}>
+      {error ? (
+        <div className="text-xs text-red-300">{error}</div>
+      ) : entries.length === 0 ? (
+        <div className="text-xs text-term-dim">Empty. Answers and notes agents save land here, and every agent in this chat reads them.</div>
+      ) : (
+        <ul className="space-y-2">
+          {shown.map((m) => (
+            <li key={m.id} className="group rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs">
+              <div className="mb-1 flex items-center gap-2">
+                <span className={`font-mono text-[10px] uppercase ${m.kind === "note" ? "text-emerald-300" : "text-term-accent"}`}>{m.kind}</span>
+                {m.pid && <span className="font-mono text-[10px] text-term-dim">pid {m.pid}</span>}
+                <button
+                  onClick={() => void api.deleteMemory(m.id).then(load)}
+                  className="ml-auto text-term-dim opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-300"
+                  title="Forget this"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="line-clamp-4 whitespace-pre-wrap text-term-fg/90">{m.content}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {entries.length > 0 && (
+        <div className="mt-3 flex items-center gap-3 text-xs">
+          {entries.length > 4 && (
+            <button onClick={() => setOpen(!open)} className="text-term-dim hover:text-term-fg">
+              {open ? "Show less" : `Show all ${entries.length}`}
+            </button>
+          )}
+          <button
+            onClick={() => {
+              if (confirm("Clear this chat's memory? Agents will lose the context of earlier messages.")) void api.clearMemory(chatId).then(load);
+            }}
+            className="ml-auto text-term-dim hover:text-red-300"
+          >
+            Clear memory
+          </button>
+        </div>
+      )}
+    </Section>
   );
 }

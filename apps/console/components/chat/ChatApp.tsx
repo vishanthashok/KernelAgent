@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import {
-  buildGoal,
   DEFAULT_OPTIONS,
   loadChats,
   loadLastModel,
@@ -114,9 +113,6 @@ export function ChatApp() {
       setActiveId(created.id);
     }
     const chatId = chat.id;
-    const earlier = chat.turns
-      .filter((t) => !t.error)
-      .map((t) => ({ prompt: t.prompt, answer: t.rootPid ? k.processes.get(t.rootPid)?.result : undefined }));
     const turn: ChatTurn = { id: newId(), prompt, createdAt: Date.now() };
     stick.current = true;
     updateChat(chatId, (c) => ({ ...c, updatedAt: Date.now(), turns: [...c.turns, turn] }));
@@ -127,10 +123,14 @@ export function ChatApp() {
       const res = await api.submitJob({
         name: titleFor(prompt),
         ...(model ? { model } : {}),
+        // Context comes from the chat's memory on the API, not a resent transcript.
+        ...(opts.memory ? { memoryScope: chatId } : {}),
+        ...(opts.effort ? { effort: opts.effort } : {}),
+        subagentEffort: opts.cheapSubagents ? "low" : (opts.effort ?? "high"),
         process: {
           role: opts.role.trim() || "assistant",
-          goal: buildGoal(prompt, earlier, opts.history),
-          capabilities: buildCapabilities(opts.perms, opts.approval),
+          goal: prompt,
+          capabilities: [...buildCapabilities(opts.perms, opts.approval), ...(opts.memory ? [{ type: "MEMORY" }] : [])],
           tokenBudget: opts.tokenBudget,
         },
       });
@@ -150,6 +150,8 @@ export function ChatApp() {
   };
 
   const remove = (id: string) => {
+    // The chat's memory on the API goes with it.
+    void api.clearMemory(id).catch(() => undefined);
     setChats((cs) => cs.filter((c) => c.id !== id));
     if (id === activeId) setActiveId(undefined);
   };
@@ -248,6 +250,7 @@ export function ChatApp() {
               jobIds={active?.turns.flatMap((t) => (t.jobId ? [t.jobId] : [])) ?? []}
               currentJobId={lastTurn?.jobId}
               model={currentModel}
+              chatId={active?.id}
               onClose={() => toggleStats(false)}
             />
           </aside>
