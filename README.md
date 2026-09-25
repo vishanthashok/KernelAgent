@@ -10,6 +10,15 @@ Each agent runs as a process. A scheduler dispatches processes from a ready queu
 
 It runs end to end with no API keys: a scripted `MockLLM` and a `LocalSandbox` are the defaults. Claude and E2B are opt-in with environment variables.
 
+## Status
+
+- All four build phases are done: kernel, syscalls and sandbox, console, reliability.
+- `pnpm test` runs 95 tests with no API keys. 2 live-provider tests skip unless keys are set.
+- The Claude (`AnthropicClient`) and E2B (`E2BSandbox`) paths typecheck but have not been run against the real services.
+- The demo GIF below is a placeholder.
+
+For agents and contributors: start with [CONTEXT.md](CONTEXT.md) (what was built, what is left). Then [docs/decisions.md](docs/decisions.md), [docs/architecture.md](docs/architecture.md), and [docs/syscall-api.md](docs/syscall-api.md).
+
 ## Why
 
 Agent frameworks give a model tools and a loop. When you run many agents at once, you need what an OS gives programs:
@@ -187,7 +196,7 @@ curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/js
 | `MAX_CONCURRENCY` | `4` | Running process cap |
 | `AGING_FACTOR` | `1` | Priority points per second spent READY |
 | `RATE_LIMIT_RPM` / `RATE_LIMIT_TPM` | `50` / `200000` | Provider rate limits |
-| `KERNEL_DB_PATH` | `./data/kernelagent.db` | SQLite file |
+| `KERNEL_DB_PATH` | `data/kernelagent.db` | SQLite file. Relative paths resolve from where you ran the command. |
 | `MOCK_LATENCY_MS` | `400` (API) | Mock delay per call, to make runs watchable |
 | `KERNEL_DEV_TOKEN` | | If set, API requests need `Authorization: Bearer <token>` |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:4000` | API the console connects to |
@@ -217,6 +226,8 @@ $ pnpm example:coding    # abbreviated: timestamps and some events removed
 pnpm example:research
 LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=... pnpm example:research
 ```
+
+**approval-gate** (`examples/approval-gate.json`). The coding task with `EXEC` behind human approval. The process waits in `WAITING approval` until you press approve in the console inspector or send `{"signal":"approve"}`. `pnpm demo` submits all three jobs.
 
 ## Architecture decisions
 
