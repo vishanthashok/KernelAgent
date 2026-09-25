@@ -64,10 +64,15 @@ export interface RateLimits {
   tokensPerMinute: number;
 }
 
-/** Per-provider RPM + TPM limiter. The scheduler consults canDispatch() before dispatch. */
+/**
+ * Per-provider RPM + TPM limiter. The scheduler consults canDispatch() before dispatch and
+ * reserves one request per dispatched process, so a single tick cannot over-admit.
+ * The reservation is consumed by that process's next model call, or released when it stops.
+ */
 export class RateLimiter {
   readonly requests: TokenBucket;
   readonly tokens: TokenBucket;
+  private reserved = new Set<string>();
 
   constructor(
     limits: RateLimits,
@@ -78,12 +83,25 @@ export class RateLimiter {
   }
 
   canDispatch(): boolean {
-    return this.requests.available() >= 1 && this.tokens.available() > 0;
+    return this.requests.available() - this.reserved.size >= 1 && this.tokens.available() > 0;
+  }
+
+  reserve(pid: string): void {
+    this.reserved.add(pid);
+  }
+
+  release(pid: string): void {
+    this.reserved.delete(pid);
+  }
+
+  reservations(): number {
+    return this.reserved.size;
   }
 
   /** Wait until one request and the estimated tokens fit, then take them. */
-  async acquire(estimatedTokens: number, signal?: AbortSignal): Promise<void> {
+  async acquire(estimatedTokens: number, signal?: AbortSignal, pid?: string): Promise<void> {
     const est = Math.min(estimatedTokens, this.tokens.capacity);
+    if (pid) this.reserved.delete(pid);
     for (;;) {
       signal?.throwIfAborted();
       const wait = Math.max(this.requests.msUntil(1), this.tokens.msUntil(est));
@@ -91,7 +109,8 @@ export class RateLimiter {
         this.tokens.debit(est);
         return;
       }
-      await new Promise((r) => setTimeout(r, Math.max(wait, 5)));
+      // Poll rather than sleep the full wait, so an injected clock or a refill is noticed.
+      await new Promise((r) => setTimeout(r, Math.min(Math.max(wait, 5), 250)));
     }
   }
 

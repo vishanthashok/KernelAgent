@@ -3,13 +3,17 @@
 // Execution itself lives in @kernelagent/runtime, attached as a ProcessRunner.
 import { randomUUID } from "node:crypto";
 import { createRepositories, type Repositories } from "@kernelagent/db";
+import { Channel, Mailbox } from "@kernelagent/ipc";
 import { estimateTokens, type CompletionRequest, type CompletionResponse, type ModelClient } from "@kernelagent/llm";
+import type { SandboxAdapter } from "@kernelagent/sandbox";
+import { CapabilityManager } from "./capabilities.ts";
 import { configFromEnv, costUsd, type KernelConfig } from "./config.ts";
 import { EventBus } from "./event-bus.ts";
 import { normalizeJobSpec } from "./job-spec.ts";
 import { ProcessManager, type TransitionInfo } from "./process-manager.ts";
 import { ResourceManager } from "./resource-manager.ts";
 import { Scheduler } from "./scheduler.ts";
+import { SyscallDispatcher, type SyscallContext, type SyscallResult } from "./syscall.ts";
 import { exitedSuccessfully, KILLED, type Capability, type Job, type JobStatus, type Process, type ProcessStatus } from "./types.ts";
 
 /** State handed to a runner when it resumes a process from a checkpoint. */
@@ -63,6 +67,8 @@ const NON_RETRYABLE = new Set(["TOKEN_BUDGET_EXCEEDED", "JOB_TOKEN_BUDGET_EXCEED
 
 export interface KernelOptions {
   llm: ModelClient;
+  /** Execution environment for FS_* and EXEC. Processes without those capabilities get no sandbox. */
+  sandbox?: SandboxAdapter;
   repos?: Repositories;
   config?: Partial<KernelConfig>;
   now?: () => number;
@@ -82,6 +88,10 @@ export class Kernel {
   readonly resources: ResourceManager;
   readonly config: KernelConfig;
   readonly llm: ModelClient;
+  readonly sandbox?: SandboxAdapter;
+  readonly caps = new CapabilityManager();
+  readonly channel: Channel;
+  readonly syscalls: SyscallDispatcher;
   readonly now: () => number;
   readonly bootedAt: number;
 
@@ -98,6 +108,7 @@ export class Kernel {
     this.now = opts.now ?? Date.now;
     this.bootedAt = this.now();
     this.llm = opts.llm;
+    if (opts.sandbox) this.sandbox = opts.sandbox;
     this.repos = opts.repos ?? createRepositories(this.config.dbPath);
     this.bus = new EventBus(this.repos.events, this.now);
     this.pm = new ProcessManager(this.bus, this.repos.processes, this.now);
@@ -113,16 +124,22 @@ export class Kernel {
       tickMs: this.config.tickMs,
       now: this.now,
       canDispatch: () => this.resources.limiter(this.llm.provider).canDispatch(),
-      onSchedule: (p, effectivePriority) =>
+      onSchedule: (p, effectivePriority) => {
+        this.resources.limiter(this.llm.provider).reserve(p.pid);
         this.bus.emit("PROCESS_SCHEDULED", p.jobId, p.pid, {
           priority: p.priority,
           effectivePriority,
           queueDepth: this.scheduler.queueDepth(),
           running: this.scheduler.running(),
-        }),
+        });
+      },
       dispatch: (p) => this.onDispatch(p),
     });
     this.pm.onTransition((t) => this.onTransition(t));
+    this.channel = new Channel(new Mailbox(this.repos.messages, this.now), {
+      onDeliver: (m) => (this.waitingOn(m.toPid) === "RECEIVE" ? this.wake(m.toPid, undefined, "MESSAGE") : false),
+    });
+    this.syscalls = new SyscallDispatcher(this);
 
     this.pm.recoverOrphans();
     for (const j of this.repos.jobs.list()) if (j.status === "RUNNING") this.repos.jobs.setStatus(j.id, "FAILED");
@@ -271,7 +288,7 @@ export class Kernel {
     const proc = this.pm.require(h.pid);
     const limiter = this.resources.limiter(this.llm.provider);
     const estimate = estimateTokens(req.system) + estimateTokens(req.messages) + estimateTokens(req.tools);
-    await limiter.acquire(estimate, h.signal);
+    await limiter.acquire(estimate, h.signal, h.pid);
     this.assertLive(h);
 
     const started = this.now();
@@ -365,6 +382,83 @@ export class Kernel {
     return true;
   }
 
+  /**
+   * The syscall ABI entry point. Runners pass their handle; external callers may pass a pid,
+   * which resolves to the process's current run.
+   */
+  syscall(pidOrHandle: string | RunHandle, request: unknown, ctx: SyscallContext = {}): Promise<SyscallResult> {
+    const h = typeof pidOrHandle === "string" ? this.handleFor(pidOrHandle) : pidOrHandle;
+    if (!h) return Promise.resolve({ ok: false, code: "RESOURCE", error: "process is not running" });
+    return this.syscalls.dispatch(h, request, ctx);
+  }
+
+  /** The handle for a process's current run, if it has one. */
+  handleFor(pid: string): RunHandle | undefined {
+    const r = this.runs.get(pid);
+    const p = this.pm.get(pid);
+    if (!r || !p) return undefined;
+    return { pid, jobId: p.jobId, generation: r.generation, signal: r.abort.signal };
+  }
+
+  /**
+   * Record a checkpoint: the process context plus the current event sequence. The sandbox
+   * filesystem is NOT snapshotted; only a marker is stored (see docs/syscall-api.md).
+   */
+  checkpoint(h: RunHandle, context: unknown, note?: string): { checkpointSeq: number } {
+    this.assertLive(h);
+    const p = this.pm.require(h.pid);
+    const ev = this.bus.emit("CHECKPOINT", p.jobId, p.pid, {
+      context,
+      ...(note ? { note } : {}),
+      atSequence: this.bus.lastSequence(),
+      tokensUsed: p.tokensUsed,
+      sandbox: p.sandboxId ? { sandboxId: p.sandboxId, provider: this.sandbox?.provider, filesystem: "not-snapshotted" } : null,
+    });
+    this.pm.update(p.pid, { lastCheckpointSeq: ev.sequence });
+    return { checkpointSeq: ev.sequence };
+  }
+
+  /**
+   * Operator signals. approve/deny resolve a pending approval gate. resume wakes a WAITING
+   * process. retry re-queues a FAILED process. kill terminates it and its descendants.
+   */
+  signal(pid: string, sig: string): { ok: boolean; message: string } {
+    const p = this.pm.get(pid);
+    if (!p) return { ok: false, message: `no such process: ${pid}` };
+    switch (sig) {
+      case "approve":
+      case "deny": {
+        if (this.waitingOn(pid) !== "APPROVAL") return { ok: false, message: "process is not waiting for approval" };
+        this.wake(pid, sig === "approve", sig === "approve" ? "APPROVED" : "DENIED");
+        return { ok: true, message: sig === "approve" ? "approved" : "denied" };
+      }
+      case "resume": {
+        if (p.status !== "WAITING") return { ok: false, message: `process is ${p.status}, not WAITING` };
+        const reason = this.waitingOn(pid);
+        this.wake(pid, reason === "APPROVAL" ? false : undefined, "SIGNAL_RESUME");
+        return { ok: true, message: "resumed" };
+      }
+      case "retry": {
+        if (p.status !== "FAILED") return { ok: false, message: `process is ${p.status}, not FAILED` };
+        this.pm.update(pid, { retryCount: p.retryCount + 1, startedAt: undefined, error: undefined });
+        this.pm.transition(pid, "READY", { reason: "SIGNAL_RETRY" });
+        const job = this.jobs.get(p.jobId);
+        if (job && job.status !== "RUNNING") {
+          job.status = "RUNNING";
+          this.repos.jobs.setStatus(job.id, "RUNNING");
+        }
+        this.scheduler.request();
+        return { ok: true, message: "re-queued" };
+      }
+      case "kill": {
+        const killed = this.kill(pid);
+        return { ok: true, message: `killed ${killed.join(", ") || "nothing"}` };
+      }
+      default:
+        return { ok: false, message: `unknown signal: ${sig}` };
+    }
+  }
+
   // ------------------------------------------------------------ lifecycle
 
   private allocPid(): string {
@@ -427,13 +521,28 @@ export class Kernel {
       });
   }
 
-  /** Hook for per-run setup (sandbox creation). Overridden in Phase 2 wiring. */
-  protected async beforeRun(_h: RunHandle): Promise<void> {}
+  /** Per-run setup: create a sandbox for processes that can touch files or run commands. */
+  private async beforeRun(h: RunHandle): Promise<void> {
+    if (!this.sandbox) return;
+    const p = this.pm.require(h.pid);
+    if (p.sandboxId) return;
+    const needs = p.capabilities.some((c) => c.type === "FS_READ" || c.type === "FS_WRITE" || c.type === "EXEC");
+    if (!needs) return;
+    const { sandboxId } = await this.sandbox.create(p.pid);
+    if (!this.isLive(h)) {
+      await this.sandbox.destroy(sandboxId);
+      throw new KernelAbortedError();
+    }
+    this.pm.update(p.pid, { sandboxId });
+  }
 
-  /** Hook for cleanup when a process is permanently done. */
-  protected async afterExit(_p: Process): Promise<void> {}
+  /** Cleanup when a process is permanently done: destroy its sandbox. */
+  private async afterExit(p: Process): Promise<void> {
+    if (this.sandbox && p.sandboxId) await this.sandbox.destroy(p.sandboxId);
+  }
 
   private endRun(pid: string): void {
+    this.resources.limiter(this.llm.provider).release(pid);
     const r = this.runs.get(pid);
     if (!r) return;
     this.runs.delete(pid);

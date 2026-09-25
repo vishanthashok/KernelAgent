@@ -60,9 +60,15 @@ importers:
       '@kernelagent/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@kernelagent/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@kernelagent/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@kernelagent/sandbox':
+        specifier: workspace:*
+        version: link:../../packages/sandbox
       '@kernelagent/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry

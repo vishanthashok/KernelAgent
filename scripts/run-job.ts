@@ -5,6 +5,7 @@ import { createRepositories } from "@kernelagent/db";
 import { Kernel, type KernelEvent } from "@kernelagent/kernel";
 import { createModelClient } from "@kernelagent/llm";
 import { Worker } from "@kernelagent/runtime";
+import { createSandbox } from "@kernelagent/sandbox";
 
 const file = process.argv[2];
 if (!file) {
@@ -13,7 +14,8 @@ if (!file) {
 }
 const spec = JSON.parse(readFileSync(file, "utf8"));
 const llm = await createModelClient();
-const kernel = new Kernel({ llm, repos: createRepositories(process.env.KERNEL_DB_PATH ?? ":memory:") });
+const sandbox = await createSandbox();
+const kernel = new Kernel({ llm, sandbox, repos: createRepositories(process.env.KERNEL_DB_PATH ?? ":memory:") });
 kernel.attachRunner(new Worker(kernel));
 kernel.start();
 

@@ -2,10 +2,12 @@
 import { Kernel } from "@kernelagent/kernel";
 import { createModelClient } from "@kernelagent/llm";
 import { Worker } from "@kernelagent/runtime";
+import { createSandbox } from "@kernelagent/sandbox";
 import { buildServer } from "./server.ts";
 
 const llm = await createModelClient();
-const kernel = new Kernel({ llm });
+const sandbox = await createSandbox();
+const kernel = new Kernel({ llm, sandbox });
 kernel.attachRunner(new Worker(kernel));
 kernel.start();
 

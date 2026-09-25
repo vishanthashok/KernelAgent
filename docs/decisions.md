@@ -44,3 +44,28 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **Fallback to mock.** `LLM_PROVIDER=anthropic` without `ANTHROPIC_API_KEY` logs a warning and uses the MockLLM, so the system never refuses to boot.
 - **Mock is stateless.** The MockLLM picks its script step from the number of assistant turns in the conversation, so a process resumed from a checkpoint continues at the right step.
 - **Price table** in `packages/kernel/config.ts`. Unknown models use a default rate.
+
+## Syscalls and capabilities
+
+- **Tool name == syscall name.** The model calls a tool named `FS_WRITE` with the syscall's `args` as its input. The loop wraps it as `{type, args}` and hands it to the dispatcher, which validates it with zod.
+- **Only permitted tools are shown.** A process sees the syscalls its capabilities allow, plus `SLEEP`, `CHECKPOINT`, `EXIT`. It can still name any tool, and the dispatcher denies it. Least authority applies to what the model is told too.
+- **Capability scopes.** FS: a path prefix (normalized, `..` collapsed). NET: comma-separated host allowlist, `*.domain` wildcards. SEND: comma-separated pid list. EXEC and SPAWN: exact-match label. RECEIVE: unscoped only (a process only reads its own mailbox). An unscoped capability covers any scope, and a scoped one never grants an unscoped child.
+- **Approval is inherited.** A child spawned from an approval-gated capability keeps the gate.
+- **SPAWN budget attenuates too.** A child's token budget is capped at half the parent's remaining budget.
+- **SPAWN escalation is logged as a denial** (`denied: true`, `code: "DENIED"`), same as a missing capability.
+- **NET has no syscall yet.** The brief's syscall table has no network call, so `NET` exists as a capability type only. `EXEC` in `LocalSandbox` is not network-restricted (it is not a security boundary).
+- **SEND stays inside the job.** A process can only message pids in its own job.
+- **EXIT emits its SYSCALL event before PROCESS_EXIT.** A final text answer with no tool call is dispatched as an `EXIT` syscall so it is logged the same way.
+- **Syscall results to the model.** Strings are passed through, objects are JSON. Large outputs are clipped at 20,000 characters.
+
+## Blocking and cooperative scheduling
+
+- **One mechanism for all blocking.** `RECEIVE` on an empty mailbox, `SLEEP`, and the approval gate all call `kernel.block()`: `RUNNING -> WAITING`, emit `BLOCKED`, release the slot, and await a continuation. `wake()` moves the process `WAITING -> READY`. When the scheduler dispatches it again (`READY -> RUNNING`), the continuation resolves. A blocked process never holds a concurrency slot.
+- **Turn-boundary yield.** After each turn, if the ready queue is non-empty and all slots are busy, the process yields (`RUNNING -> READY`). This keeps long agents from monopolizing slots.
+- **Rate-limit reservations.** Dispatch reserves one request from the provider bucket for the process. Its next model call consumes the reservation. Ending the run releases it. This stops one scheduler tick from admitting more processes than the bucket can serve.
+- **Sandboxes are created lazily** at first dispatch, and only for processes holding `FS_READ`, `FS_WRITE`, or `EXEC`. The sandbox survives retries and is destroyed when the process ends for good.
+
+## Checkpoints
+
+- **What is stored.** The CHECKPOINT event holds the message history up to the assistant turn that called CHECKPOINT, results of tool calls earlier in that turn, the current event sequence, and a sandbox marker. The sandbox filesystem is not snapshotted.
+- **Resume.** On retry the loop rebuilds the context from the snapshot and closes the interrupted turn: CHECKPOINT gets a `{resumed: true}` result, and tool calls after it in the same turn get an error result saying they did not run.

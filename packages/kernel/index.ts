@@ -6,3 +6,5 @@ export * from "./process-manager.ts";
 export * from "./scheduler.ts";
 export * from "./resource-manager.ts";
 export * from "./kernel.ts";
+export * from "./capabilities.ts";
+export * from "./syscall.ts";

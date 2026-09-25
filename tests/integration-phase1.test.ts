@@ -18,6 +18,7 @@ describe("phase 1 integration", () => {
       "PROCESS_SCHEDULED",
       "STATE_CHANGE", // READY -> RUNNING
       "LLM_CALL",
+      "SYSCALL", // final text answer becomes EXIT
       "PROCESS_EXIT",
       "STATE_CHANGE", // RUNNING -> TERMINATED
     ]);

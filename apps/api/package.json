@@ -10,6 +10,8 @@
     "@fastify/websocket": "^11.0.0",
     "@kernelagent/kernel": "workspace:*",
     "@kernelagent/runtime": "workspace:*",
+    "@kernelagent/sandbox": "workspace:*",
+    "@kernelagent/llm": "workspace:*",
     "@kernelagent/telemetry": "workspace:*",
     "fastify": "^5.0.0"
   }
