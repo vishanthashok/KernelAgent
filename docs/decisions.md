@@ -107,6 +107,14 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **Chats are stored in localStorage.** They are per browser and not synced. Job data itself stays in the server's event log, so a chat's answers and files reappear as long as the API still has those jobs.
 - **Routes.** `/` is the public landing page, `/chat` is the chat, `/console` is the monitor. Chat and console use the same `useKernel()` stream.
 
+## Budgets that end with an answer
+
+- **Budgets are cache-weighted.** `tokensUsed` charges cached input at its price weight (reads 0.1x, writes 1.25x) through `budgetTokens()` in `packages/kernel/budget.ts`. Before, a process resending a mostly cached history paid 0.1x in money but 1x in budget, so children ran out after four or five turns. Replay uses the same helper.
+- **Rollover, not death.** When a process has less than 20% of its budget left, or less than two calls like its last one, the execution loop asks `Kernel.rollover()` for another starting budget (at most `MAX_ROLLOVERS`, default 2, clamped to the job budget). On success it replaces the history with one message: the goal plus a digest of every tool call and the latest notes (`digestHistory` in `context.ts`). No extra model call. The pid, sandbox, and system prompt stay the same, so dependents, files, and the prompt cache all survive. `BUDGET_EXTENDED` is a new event type, and replay folds it into `tokenBudget`. Rollover counts live in kernel memory, since a kernel restart fails live processes anyway.
+- **Wrap-up.** With no rollover left, the loop adds a note to the next user turn asking for EXIT with the best answer so far. The reply that finishes a process (EXIT or plain text) is kept even if that call crossed the budget. Any other reply that crosses it still fails the process, as before.
+- **CHILD_EXIT.** When a process ends for good, the kernel sends its live parent a `{type: "CHILD_EXIT", pid, role, status, result | error + lastOutput}` message. A parent blocked on RECEIVE wakes instead of waiting on a dead child.
+- **RECEIVE deadlock release.** If every live process in a job is blocked on RECEIVE with an empty mailbox, nothing can ever arrive. The kernel wakes them all, and RECEIVE returns `{closed: true, reason}`. The check runs when a process blocks on RECEIVE and when any process ends.
+
 ## Sign-in and providers
 
 - **Auth.js with JWT sessions, no database.** GitHub and Google sign-in (`apps/console/auth.ts`). No user table: nothing about a user is stored server-side. Auth turns on only when `AUTH_SECRET` and a provider's id and secret are set, so local runs and tests need nothing.

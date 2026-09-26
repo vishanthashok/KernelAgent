@@ -1,5 +1,5 @@
 // Process context: system prompt + message history. This is what a checkpoint snapshots.
-import type { Message, ToolResultBlock } from "@kernelagent/llm";
+import type { Message, ToolResultBlock, ToolUseBlock } from "@kernelagent/llm";
 import type { Capability, Process } from "@kernelagent/kernel";
 
 export interface ContextSnapshot {
@@ -64,9 +64,50 @@ export function systemPrompt(p: Process, peers: Pick<Process, "pid" | "role" | "
     `- To hand files to the user (a report, PDF, image, CSV), save them under /output/ in your sandbox.`,
     `  Everything in /output/ is kept and offered for download after you exit. Other files are deleted.`,
     `- When the goal is done, call EXIT with your answer.`,
+    `- Keep tool output small: use head, tail, grep, or wc instead of printing whole files. Every turn resends it.`,
+    `- A CHILD_EXIT message means that child is done: use its result or lastOutput. Never wait for a child that has exited.`,
+    `- If RECEIVE returns closed, nobody can message you any more. Finish and EXIT with what you have.`,
     ...memorySection(memory),
   ].join("\n");
 }
+
+// Limits for the digest a rollover leaves in place of the history.
+const DIGEST_ARGS_CHARS = 150;
+const DIGEST_RESULT_CHARS = 300;
+const DIGEST_TEXT_CHARS = 1500;
+const DIGEST_MAX_STEPS = 40;
+
+/** One line per tool call (name, args, result), plus the latest assistant text. */
+export function digestHistory(messages: Message[]): { steps: string[]; lastText: string } {
+  const results = new Map<string, ToolResultBlock>();
+  for (const m of messages) {
+    if (m.role !== "user" || typeof m.content === "string") continue;
+    for (const b of m.content) if (b.type === "tool_result") results.set(b.tool_use_id, b);
+  }
+  const steps: string[] = [];
+  let lastText = "";
+  for (const m of messages) {
+    if (m.role !== "assistant") continue;
+    if (typeof m.content === "string") {
+      if (m.content.trim()) lastText = m.content.trim();
+      continue;
+    }
+    const text = m.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n").trim();
+    if (text) lastText = text;
+    for (const b of m.content) {
+      if (b.type !== "tool_use") continue;
+      const u = b as ToolUseBlock;
+      const r = results.get(u.id);
+      const out = r ? oneLine(typeof r.content === "string" ? r.content : JSON.stringify(r.content)) : "(no result)";
+      steps.push(`- ${u.name}(${clip(oneLine(JSON.stringify(u.input ?? {})), DIGEST_ARGS_CHARS)}) ${r?.is_error ? "failed" : "->"} ${clip(out, DIGEST_RESULT_CHARS)}`);
+    }
+  }
+  const dropped = steps.length - DIGEST_MAX_STEPS;
+  const kept = dropped > 0 ? [`- (${dropped} earlier steps omitted)`, ...steps.slice(dropped)] : steps;
+  return { steps: kept, lastText: clip(lastText, DIGEST_TEXT_CHARS) };
+}
+
+const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
 
 export class ProcessContext {
   constructor(
@@ -101,6 +142,39 @@ export class ProcessContext {
     }
     if (results.length) messages.push({ role: "user", content: results });
     return new ProcessContext(systemPrompt(p, peers, memory), messages);
+  }
+
+  /**
+   * Replace the history with one message: the goal plus a digest of the work so far. Used when
+   * a process rolls over its token budget. The system prompt is untouched, so its cache holds.
+   */
+  compact(goal: string): void {
+    const digest = digestHistory(this.messages);
+    this.messages.splice(0, this.messages.length, {
+      role: "user",
+      content: [
+        `Your goal: ${goal}`,
+        ``,
+        `You are continuing this goal with a compacted history to save tokens. Your sandbox files are unchanged.`,
+        `Progress so far:`,
+        ...(digest.steps.length ? digest.steps : [`- (no tool calls yet)`]),
+        ...(digest.lastText ? [``, `Your latest notes:`, digest.lastText] : []),
+        ``,
+        `Continue from here. Do not redo finished steps.`,
+      ].join("\n"),
+    });
+  }
+
+  /** Add a note to the pending user turn without changing earlier messages. */
+  appendNote(text: string): void {
+    const last = this.messages[this.messages.length - 1];
+    if (!last || last.role !== "user") {
+      this.messages.push({ role: "user", content: text });
+    } else if (typeof last.content === "string") {
+      last.content = `${last.content}\n\n${text}`;
+    } else {
+      last.content.push({ type: "text", text });
+    }
   }
 
   snapshot(checkpointToolUseId: string, partialResults: ToolResultBlock[]): ContextSnapshot {

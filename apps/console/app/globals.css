@@ -292,3 +292,19 @@ textarea:focus {
 .md hr {
   border-color: var(--line);
 }
+
+/* Logo: the process orbit turns slowly while hovered. */
+.logo-orbit {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .logo-link:hover .logo-orbit {
+    animation: logo-orbit 6s linear infinite;
+  }
+}
+@keyframes logo-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}

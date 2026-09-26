@@ -1,6 +1,7 @@
 // Resource Manager. The scarce resources of an agent kernel are tokens, dollars,
 // wall-clock time, and provider rate limits. There is no real CPU to schedule.
 import { costUsd, type CacheUsage } from "./config.ts";
+import { budgetTokens } from "./budget.ts";
 import type { ProcessManager } from "./process-manager.ts";
 
 /** Classic token bucket. Refills continuously at capacity per windowMs. */
@@ -162,7 +163,7 @@ export class ResourceManager {
   /** Deduct usage from an LLM call. Returns a violation if a budget is now exceeded. */
   charge(pid: string, model: string, inputTokens: number, outputTokens: number, cache: CacheUsage = {}): BudgetViolation | undefined {
     const p = this.pm.require(pid);
-    const tokensUsed = p.tokensUsed + inputTokens + outputTokens;
+    const tokensUsed = p.tokensUsed + budgetTokens(inputTokens, outputTokens, cache);
     const cost = p.costUsd + costUsd(model, inputTokens, outputTokens, cache);
     this.pm.update(pid, { tokensUsed, costUsd: cost });
     if (tokensUsed > p.tokenBudget) return "TOKEN_BUDGET_EXCEEDED";

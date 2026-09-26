@@ -70,6 +70,8 @@ export interface KernelConfig {
   tickMs: number;
   rateLimits: { requestsPerMinute: number; tokensPerMinute: number };
   dbPath: string;
+  // Times a process that nears its token budget may continue with a compacted context.
+  maxRollovers: number;
 }
 
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): KernelConfig {
@@ -82,6 +84,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): KernelConfi
       tokensPerMinute: num(env.RATE_LIMIT_TPM, 200_000),
     },
     dbPath: resolveDbPath(env),
+    maxRollovers: num(env.MAX_ROLLOVERS, 2),
   };
 }
 
