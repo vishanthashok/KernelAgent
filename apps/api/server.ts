@@ -73,15 +73,18 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
   };
 
   // Models the provider can run, for the caller's key when it sends one. Fills the console's model picker.
-  app.get("/models", async (req, reply) => {
+  // With ?provider=anthropic|openai on a multi-provider server, only that provider's models.
+  app.get<{ Querystring: { provider?: string } }>("/models", async (req, reply) => {
     try {
       const apiKey = userKey(req);
+      const provider = req.query.provider;
       return {
         provider: kernel.llm.provider,
         default: kernel.llm.model,
         acceptsUserKeys: kernel.llm.acceptsUserKeys,
         requiresUserKey: kernel.llm.requiresUserKey,
-        models: await kernel.llm.listModels(apiKey ? { apiKey } : {}),
+        providers: kernel.llm.providers?.() ?? [{ id: kernel.llm.provider, requiresUserKey: kernel.llm.requiresUserKey }],
+        models: await kernel.llm.listModels({ ...(apiKey ? { apiKey } : {}), ...(provider ? { provider } : {}) }),
       };
     } catch (err) {
       return reply.code(400).send({ error: (err as Error).message });
@@ -91,7 +94,7 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
   app.post("/jobs", async (req, reply) => {
     const apiKey = userKey(req);
     if (kernel.llm.requiresUserKey && !apiKey) {
-      return reply.code(400).send({ error: "this server runs on your own API key. Add it in the console settings." });
+      return reply.code(400).send({ error: "this server runs on your own API key. Add a Claude or OpenAI key on the Connect page." });
     }
     const model = (req.body as { model?: unknown } | null)?.model;
     if (typeof model === "string" && model !== kernel.llm.model) {

@@ -1,10 +1,11 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { ModelsResponse, Stats } from "@/lib/api";
 import type { ChatOptions, Effort } from "@/lib/chats";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { ModelsState, ResolvedModel } from "@/lib/useModels";
-import { maskKey, setUserKey } from "@/lib/userKey";
+import { KEY_PROVIDERS, maskKey, PROVIDER_LABEL } from "@/lib/userKey";
 
 export function Composer({
   options,
@@ -47,7 +48,9 @@ export function Composer({
 
   const perms = Object.values(options.perms).filter(Boolean).length;
   const list = models?.models ?? [];
-  const needsKey = !!models?.requiresUserKey && !keyState?.userKey;
+  const hasKey = Object.keys(keyState?.keys ?? {}).length > 0;
+  // Nothing runs until the user adds a key: the server has none and this browser has none that work.
+  const needsKey = !!models?.acceptsUserKeys && list.length === 0 && (!!models.requiresUserKey || hasKey);
   const stale = !!options.model && list.length > 0 && !list.some((m) => m.id === options.model);
 
   return (
@@ -101,7 +104,7 @@ export function Composer({
               />
             </label>
           </div>
-          {models?.acceptsUserKeys && <KeyField state={keyState} models={models} />}
+          {models?.acceptsUserKeys && <KeysSummary state={keyState} />}
           <div className="label-caps mb-2">Permissions</div>
           <div className="flex flex-wrap gap-2">
             {PERMISSIONS.map((p) => (
@@ -196,10 +199,10 @@ export function Composer({
       <p className="mt-2 text-center text-xs text-term-dim">
         {needsKey ? (
           <span className="text-warn">
-            This server runs on your own Anthropic API key.{" "}
-            <button onClick={() => setAdvanced(true)} className="underline">
-              Add your key
-            </button>
+            {hasKey ? "Your keys did not list any models. " : "This server runs on your own API key. "}
+            <Link href="/connect" className="underline">
+              {hasKey ? "Check your keys" : "Add a Claude or OpenAI key"}
+            </Link>
             .
           </span>
         ) : stale
@@ -227,6 +230,19 @@ function ModelSelect({
   const list = models?.models ?? [];
   const current = options.model ?? "";
   const nameOf = (id: string) => list.find((m) => m.id === id)?.name ?? id;
+  const groups: [string, typeof list][] = [];
+  for (const m of list) {
+    const p = m.provider ?? models?.provider ?? "";
+    const g = groups.find(([k]) => k === p);
+    if (g) g[1].push(m);
+    else groups.push([p, [m]]);
+  }
+  const option = (m: { id: string; name: string }) => (
+    <option key={m.id} value={m.id}>
+      {m.name}
+      {m.name !== m.id ? ` · ${m.id}` : ""}
+    </option>
+  );
   return (
     <select
       value={current}
@@ -240,62 +256,39 @@ function ModelSelect({
     >
       <option value="">{models ? `Default · ${nameOf(models.default)}` : "Default model"}</option>
       {current && !list.some((m) => m.id === current) && <option value={current}>{current} (unavailable)</option>}
-      {list.map((m) => (
-        <option key={m.id} value={m.id}>
-          {m.name}
-          {m.name !== m.id ? ` · ${m.id}` : ""}
-        </option>
-      ))}
+      {groups.length > 1
+        ? groups.map(([provider, ms]) => (
+            <optgroup key={provider} label={PROVIDER_NAME[provider] ?? provider}>
+              {ms.map(option)}
+            </optgroup>
+          ))
+        : list.map(option)}
     </select>
   );
 }
 
-/** Paste your own provider key. It stays in this browser and goes to the API as a header on each call. */
-function KeyField({ state, models }: { state?: ModelsState | undefined; models: ModelsResponse }) {
-  const [draft, setDraft] = useState("");
-  const key = state?.userKey;
+const PROVIDER_NAME: Record<string, string> = { anthropic: "Claude", openai: "OpenAI" };
+
+/** Which keys this browser holds. Keys are added and checked on /connect. */
+function KeysSummary({ state }: { state?: ModelsState | undefined }) {
+  const keys = state?.keys ?? {};
   return (
     <div className="mb-4 rounded-md border border-ink/10 bg-sunk/20 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="label-caps">Your API key</span>
-        <span className="font-mono text-[11px] text-term-dim">
-          {key ? `using ${maskKey(key)}` : models.requiresUserKey ? "required on this server" : "optional, the server key is used otherwise"}
-        </span>
+        <span className="label-caps">Your API keys</span>
+        <Link href="/connect" className="ml-auto text-xs text-accent underline">
+          Manage keys
+        </Link>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <input
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={key ? "Paste a new key to replace it" : "sk-ant-…"}
-          className="min-w-0 flex-1 border border-ink/15 bg-sunk/30 px-3 py-1.5 font-mono text-sm"
-        />
-        <button
-          onClick={() => {
-            if (!draft.trim()) return;
-            setUserKey(draft.trim());
-            setDraft("");
-          }}
-          disabled={!draft.trim()}
-          className="pill pill-light px-4 py-1 text-sm disabled:opacity-40"
-        >
-          Save
-        </button>
-        {key && (
-          <button onClick={() => setUserKey(undefined)} className="pill pill-ghost px-4 py-1 text-sm">
-            Remove
-          </button>
-        )}
+      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px]">
+        {KEY_PROVIDERS.map((p) => (
+          <span key={p} className={state?.errors?.[p] ? "text-danger" : keys[p] ? "text-ok" : "text-term-dim"}>
+            {PROVIDER_LABEL[p]}: {keys[p] ? `${maskKey(keys[p])}${state?.errors?.[p] ? " (rejected)" : ""}` : "none"}
+          </span>
+        ))}
       </div>
-      {state?.error && key ? (
-        <div className="mt-2 text-xs text-danger">{state.error}</div>
-      ) : key && state?.data ? (
-        <div className="mt-2 text-xs text-ok">Key works. {state.data.models.length} models available.</div>
-      ) : null}
       <p className="mt-2 text-xs text-term-dim">
-        Stored in this browser only. The API holds it in memory while your job runs and never writes it to the log or database.
+        Stored in this browser only. The API holds a key in memory while your job runs and never writes it to the log or database.
       </p>
     </div>
   );

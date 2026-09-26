@@ -5,9 +5,19 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
 
+const DESCRIPTION =
+  "Run AI agents like OS processes: a scheduler, permission-checked syscalls, sandboxes, and a replayable event log. Bring your own Claude or OpenAI key.";
+
 export const metadata: Metadata = {
+  // Absolute URLs for the Open Graph image. Vercel sets VERCEL_PROJECT_PRODUCTION_URL.
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ??
+      (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000"),
+  ),
   title: "KernelAgent",
-  description: "Chat, process monitor, and metrics for the KernelAgent kernel",
+  description: DESCRIPTION,
+  openGraph: { title: "KernelAgent", description: DESCRIPTION, type: "website", siteName: "KernelAgent" },
+  twitter: { card: "summary_large_image", title: "KernelAgent", description: DESCRIPTION },
 };
 
 // Runs before paint so the page never flashes the wrong theme. Light unless the viewer

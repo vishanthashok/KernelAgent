@@ -157,7 +157,8 @@ Each process has a FIFO mailbox stored in SQLite. `SEND` queues a message for a 
 ## Observability
 
 - **Event log.** SQLite, append-only (triggers block UPDATE and DELETE), with a monotonic sequence. Each `LLM_CALL` stores the full request and response. `packages/kernel/replay.ts` rebuilds every process from the log, and a test checks it against the live table field by field.
-- **Chat.** The console opens on a chat view like Claude or ChatGPT (`/`). Each message runs as an agent job. The thread shows the agent's steps live, the answer as Markdown, download cards for `/output/` files, and inline Approve / Deny when a command needs approval. **Advanced** under the composer sets role, token budget, permissions, the approval gate, and whether earlier turns are sent as context.
+- **Landing and sign-in.** `/` is a public landing page that explains KernelAgent. Visitors sign in with GitHub or Google (`/login`), then add their own Claude or OpenAI API key on `/connect`. See [Sign-in and keys](#sign-in-and-keys).
+- **Chat.** The chat (`/chat`) works like Claude or ChatGPT. Each message runs as an agent job. The thread shows the agent's steps live, the answer as Markdown, download cards for `/output/` files, and inline Approve / Deny when a command needs approval. **Advanced** under the composer sets role, token budget, permissions, the approval gate, and whether earlier turns are sent as context.
 - **Console.** The monitor lives at `/console`: Output, Processes, Task Graph, IPC, Sandboxes, and Traces tabs, a live event stream, and a process inspector. The `+ New Job` button opens a prompt box: type a goal, pick permissions, and run it as an agent, or launch one of the examples. Traces rewinds a job to any sequence and shows what the model saw and said.
 - **OpenTelemetry.** Spans for each job, process run, LLM call, syscall, and scheduler dispatch. LLM and syscall spans nest under their process run, which nests under its job. Metrics cover processes by state, tokens, cost, queue depth, and rate-limiter saturation. The console exporter is the default. Set `OTEL_EXPORTER_OTLP_ENDPOINT` for OTLP, or `OTEL_SDK_DISABLED=true` to turn it off.
 - **CPU\*** in the console is runtime utilization, the share of a process's life spent `RUNNING`. It is not real CPU.
@@ -203,10 +204,11 @@ curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/js
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `LLM_PROVIDER` | `mock` | `mock` or `anthropic` |
-| `ANTHROPIC_API_KEY` | | Required for `anthropic`. Without it the mock is used. |
-| `ANTHROPIC_MODEL` | `claude-opus-5` | Default model id. A job can pick another with `"model"` in its spec, or from the chat's model picker. |
-| `REQUIRE_USER_KEY` | | `true` makes every job bring its own Anthropic key (the `x-provider-key` header, set from the chat's Advanced panel). The server's key is never used. |
+| `LLM_PROVIDER` | `mock` | `mock`, `anthropic`, `openai`, or `multi` (Claude and GPT side by side, routed by model id) |
+| `ANTHROPIC_API_KEY` | | Server key for Claude models. Without any key the mock is used, unless `REQUIRE_USER_KEY=true`. |
+| `OPENAI_API_KEY` | | Server key for GPT models. With `LLM_PROVIDER=anthropic` it turns on `multi`. |
+| `ANTHROPIC_MODEL` / `OPENAI_MODEL` | `claude-opus-5` / `gpt-5` | Default model ids. A job can pick another with `"model"` in its spec, or from the chat's model picker. |
+| `REQUIRE_USER_KEY` | | `true` makes every job bring its own key (the `x-provider-key` header, set from `/connect`). The server's keys are never used. |
 | `SANDBOX_PROVIDER` | `local` | `local` or `e2b` |
 | `E2B_API_KEY` | | Required for `e2b`. Without it `local` is used. |
 | `MAX_CONCURRENCY` | `4` | Running process cap |
@@ -216,7 +218,25 @@ curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/js
 | `MOCK_LATENCY_MS` | `400` (API) | Mock delay per call, to make runs watchable |
 | `KERNEL_DEV_TOKEN` | | If set, API requests need `Authorization: Bearer <token>` |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:4000` | API the console connects to |
+| `AUTH_SECRET` | | Console. Turns on sign-in together with at least one provider below. Make one with `npx auth secret`. |
+| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | | Console. GitHub OAuth app |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | | Console. Google OAuth client |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | | OTLP/HTTP endpoint. Console exporter if unset. |
+
+### Sign-in and keys
+
+Sign-in is off until you set the `AUTH_*` variables on the console, so a fresh clone runs with every page open.
+
+To turn it on (for example on Vercel):
+1. GitHub: Settings → Developer settings → OAuth Apps → New. Callback URL: `https://<your-console-domain>/api/auth/callback/github`.
+2. Google: Cloud Console → APIs & Services → Credentials → OAuth client ID (Web). Redirect URI: `https://<your-console-domain>/api/auth/callback/google`.
+3. Set `AUTH_SECRET` and the id and secret for each provider you set up. Redeploy.
+
+Sessions are JWT cookies. There is no user table. The login gates `/chat`, `/console`, `/dashboard`, and `/connect`. It does not pay for model calls: each visitor's own key does.
+
+For a public deploy, run the API with `LLM_PROVIDER=multi REQUIRE_USER_KEY=true`. Visitors add keys on `/connect`, which checks each key against `GET /models?provider=`. Keys stay in the browser and go to the API per job as a header. The API picks Claude or GPT from the job's model and refuses a key from the other provider.
+
+Claude.ai and ChatGPT subscriptions cannot be used here. Neither company lets third-party apps run models on a consumer account, so an API key is the only way in.
 
 ## Example workload
 
@@ -265,10 +285,12 @@ Every choice the brief left open is logged in [docs/decisions.md](docs/decisions
 - **`NET` is a capability without a syscall.** `EXEC` in LocalSandbox is not network-restricted.
 - **Cost is an estimate** from the price table in `packages/kernel/config.ts`.
 - **Live provider tests** (`tests/live-providers.test.ts`) run only when `ANTHROPIC_API_KEY` or `E2B_API_KEY` is set. The Claude and E2B paths are typechecked but were not exercised in CI.
-- **Auth** is an optional shared dev token.
+- **Auth.** The console has optional GitHub/Google sign-in. The API itself only has an optional shared dev token.
+- **OpenAI** runs through Chat Completions with function tools. It was typechecked and unit-tested with stubbed responses, not run against the live API.
 
 ## Roadmap
 
+- Connectors: an `MCP` syscall gated by a `CONNECTOR` capability scoped to a server name, so agents can use GitHub, Google Drive, or Slack under the same checks, approvals, and log as other syscalls. Users connect each one through its own OAuth on `/connect`.
 - A `FETCH` syscall gated by `NET` host allowlists.
 - Sandbox filesystem snapshots at checkpoints, where the provider supports them.
 - Streaming model calls, so a turn can be cancelled cleanly mid-generation.
