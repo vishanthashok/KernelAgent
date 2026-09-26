@@ -9,3 +9,4 @@ export * from "./kernel.ts";
 export * from "./capabilities.ts";
 export * from "./syscall.ts";
 export * from "./replay.ts";
+export * from "./budget.ts";

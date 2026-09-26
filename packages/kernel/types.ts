@@ -75,7 +75,8 @@ export type KernelEventType =
   | "CHECKPOINT"
   | "PROCESS_EXIT"
   | "PROCESS_CRASH"
-  | "ARTIFACT";
+  | "ARTIFACT"
+  | "BUDGET_EXTENDED";
 
 export interface KernelEvent<P = unknown> {
   sequence: number;
@@ -95,6 +96,9 @@ export interface Job {
   createdAt: number;
   tokenBudget?: number;
 }
+
+/** Wake value for a RECEIVE that can never be satisfied: no process left in the job can send. */
+export const RECEIVE_CLOSED = Object.freeze({ closed: true as const });
 
 export const TERMINAL_STATES: ReadonlySet<ProcessStatus> = new Set(["TERMINATED", "FAILED"]);
 

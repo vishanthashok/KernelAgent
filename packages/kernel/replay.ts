@@ -2,6 +2,7 @@
 // this fold must agree with the live process table. It has no runtime dependencies, so
 // the console can import it to rewind a job to any sequence number.
 import type { Capability, KernelEvent, ProcessStatus } from "./types.ts";
+import { budgetTokens } from "./budget.ts";
 
 export interface ReplayedProcess {
   pid: string;
@@ -91,12 +92,15 @@ export function applyEvent(procs: Map<string, ReplayedProcess>, e: KernelEvent):
       break;
     }
     case "LLM_CALL":
-      proc.tokensUsed += (p.inputTokens ?? 0) + (p.outputTokens ?? 0);
+      proc.tokensUsed += budgetTokens(p.inputTokens ?? 0, p.outputTokens ?? 0, { read: p.cacheReadTokens, write: p.cacheWriteTokens });
       proc.costUsd += p.costUsd ?? 0;
       if (p.sandboxId) proc.sandboxId = p.sandboxId;
       break;
     case "SYSCALL":
       if (p.sandboxId) proc.sandboxId = p.sandboxId;
+      break;
+    case "BUDGET_EXTENDED":
+      proc.tokenBudget = p.tokenBudget;
       break;
     case "CHECKPOINT":
       proc.lastCheckpointSeq = e.sequence;

@@ -141,6 +141,9 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 - `AnthropicClient.complete` sets top-level `cache_control: {type: "ephemeral"}`. Anything that changes the system prompt or tool list mid-process breaks the cache. Keep both fixed per process.
 - `CompletionResponse.inputTokens` is total input, cached or not. `cacheReadTokens`/`cacheWriteTokens` are the cached parts. `costUsd()` prices reads at 0.1x and writes at 1.25x input. `LLM_CALL` events carry both counts and `cacheSavingsUsd`.
 - Effort: spec `effort` for listed processes, `subagentEffort` (default `low`) for spawned ones, `Kernel.effortFor`. The Anthropic client sends it only to models matching `EFFORT_MODELS`. Haiku 4.5 rejects effort.
+- Budgets are cache-weighted (`budgetTokens` in `packages/kernel/budget.ts`, shared with replay).
+- Near its budget, a process rolls over: `Kernel.rollover` adds its starting budget (max `MAX_ROLLOVERS`, clamped to the job budget), emits `BUDGET_EXTENDED`, and the loop swaps the history for a digest (`ProcessContext.compact`). With no rollover left, the loop asks for EXIT. A finishing reply is kept even if it crossed the budget.
+- A process that ends sends its live parent a `CHILD_EXIT` message. If every live process in a job waits on RECEIVE with an empty mailbox, RECEIVE returns `{closed: true}`.
 - Tool results sent to the model are capped at 16k chars (`capToolResult`). Peer goals in the system prompt are clipped to 200 chars.
 
 ## Output and files

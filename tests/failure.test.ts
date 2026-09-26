@@ -16,7 +16,8 @@ describe("kill", () => {
             { tool: "SPAWN", input: { role: "child", goal: "wait", capabilities: [{ type: "RECEIVE" }, { type: "FS_WRITE" }] } },
             { tool: "RECEIVE", input: {} },
           ],
-          child: [{ tool: "FS_WRITE", input: { path: "/x", content: "1" } }, { tool: "RECEIVE", input: {} }],
+          // The child sleeps: if both sat on RECEIVE the kernel would release them as deadlocked.
+          child: [{ tool: "FS_WRITE", input: { path: "/x", content: "1" } }, { tool: "SLEEP", input: { ms: 10_000 } }],
         },
       },
     });

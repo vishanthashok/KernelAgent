@@ -15,7 +15,7 @@ import { ProcessManager, type TransitionInfo } from "./process-manager.ts";
 import { ResourceManager } from "./resource-manager.ts";
 import { Scheduler } from "./scheduler.ts";
 import { SyscallDispatcher, type SyscallContext, type SyscallResult } from "./syscall.ts";
-import { exitedSuccessfully, KILLED, type Capability, type Job, type JobStatus, type Process, type ProcessStatus } from "./types.ts";
+import { exitedSuccessfully, KILLED, RECEIVE_CLOSED, TERMINAL_STATES, type Capability, type Job, type JobStatus, type Process, type ProcessStatus } from "./types.ts";
 
 /** State handed to a runner when it resumes a process from a checkpoint. */
 export interface ResumeState {
@@ -26,6 +26,8 @@ export interface ResumeState {
 /** Most characters of chat memory put in a process's system prompt. RECALL reaches the rest. */
 export const MEMORY_PROMPT_CHARS = 6000;
 
+// Longest child result or output carried in a CHILD_EXIT message.
+const CHILD_RESULT_CHARS = 4000;
 const clipText = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /**
@@ -127,6 +129,8 @@ export class Kernel {
 
   private runner?: ProcessRunner;
   private runs = new Map<string, RunState>();
+  // Rollovers used per pid, and the starting budget each one adds.
+  private rollovers = new Map<string, { count: number; base: number }>();
   private jobs = new Map<string, Job>();
   /**
    * API keys users brought for their jobs. Memory only: never in the spec, the DB, or an
@@ -460,11 +464,45 @@ export class Kernel {
     });
 
     const violation = this.resources.charge(h.pid, model, res.inputTokens, res.outputTokens, cache);
-    if (violation) {
+    // A reply that finishes the process (EXIT or a plain answer) is kept even if it crossed the
+    // budget: the tokens are spent either way, and dropping the answer would waste them.
+    const finishing = !res.content.some((b) => b.type === "tool_use" && b.name !== "EXIT");
+    if (violation && !finishing) {
       this.failRun(h, violation, `${violation}: used ${this.pm.require(h.pid).tokensUsed} tokens`);
       throw new BudgetExceededError(violation);
     }
     return res;
+  }
+
+  /** Tokens a process may still spend: the smaller of its own and its job's remaining budget. */
+  budgetLeft(pid: string, scope: "process" | "job" | "both" = "both"): number {
+    const p = this.pm.require(pid);
+    const own = p.tokenBudget - p.tokensUsed;
+    const jb = this.jobs.get(p.jobId)?.tokenBudget;
+    const job = jb === undefined ? Infinity : jb - this.resources.jobTokensUsed(p.jobId);
+    return scope === "process" ? own : scope === "job" ? job : Math.min(own, job);
+  }
+
+  /**
+   * Give a process that is nearing its token budget another budget's worth of tokens, so it
+   * can continue from a compacted context instead of failing. The extension equals the
+   * process's starting budget, clamped to what is left of the job budget. Returns false when
+   * the process has used its rollovers or the job has nothing left.
+   */
+  rollover(h: RunHandle): boolean {
+    this.assertLive(h);
+    const p = this.pm.require(h.pid);
+    const state = this.rollovers.get(p.pid) ?? { count: 0, base: p.tokenBudget };
+    if (state.count >= this.config.maxRollovers) return false;
+    // Never promise more than the job can still pay for.
+    const extra = Math.min(state.base, this.budgetLeft(p.pid, "job") - (p.tokenBudget - p.tokensUsed));
+    if (extra <= 0) return false;
+    state.count += 1;
+    this.rollovers.set(p.pid, state);
+    const tokenBudget = p.tokenBudget + extra;
+    this.pm.update(p.pid, { tokenBudget });
+    this.bus.emit("BUDGET_EXTENDED", p.jobId, p.pid, { tokenBudget, added: extra, rollover: state.count, tokensUsed: p.tokensUsed });
+    return true;
   }
 
   /** Terminate the calling process with a result. */
@@ -522,6 +560,7 @@ export class Kernel {
     const proc = this.pm.transition(h.pid, "WAITING", { reason });
     this.bus.emit("BLOCKED", proc.jobId, proc.pid, { reason, ...info });
     this.scheduler.request();
+    if (reason === "RECEIVE") this.releaseDeadlockedReceivers(proc.jobId);
     const v = await p;
     this.assertLive(h);
     return v as T;
@@ -768,6 +807,8 @@ export class Kernel {
       });
       if (ready) this.pm.transition(dep.pid, "READY", { reason: "DEPENDENCIES_MET" });
     }
+    this.notifyParent(p.pid);
+    this.releaseDeadlockedReceivers(p.jobId);
     // The job only completes once every exited process's files are saved and sandbox destroyed.
     this.pendingCleanups.set(p.jobId, (this.pendingCleanups.get(p.jobId) ?? 0) + 1);
     void this.afterExit(this.pm.require(p.pid))
@@ -778,6 +819,51 @@ export class Kernel {
         else this.pendingCleanups.delete(p.jobId);
         this.checkJob(p.jobId);
       });
+  }
+
+  /**
+   * Tell a live parent that its child is done, with the answer or the failure and the child's
+   * last output. The message wakes a parent blocked on RECEIVE, so it never waits on a dead child.
+   */
+  private notifyParent(pid: string): void {
+    const c = this.pm.require(pid);
+    const parent = c.parentPid ? this.pm.get(c.parentPid) : undefined;
+    if (!parent || TERMINAL_STATES.has(parent.status)) return;
+    const ok = exitedSuccessfully(c);
+    const body = ok
+      ? { type: "CHILD_EXIT", pid: c.pid, role: c.role, status: c.status, result: clipText(c.result ?? "", CHILD_RESULT_CHARS) }
+      : {
+          type: "CHILD_EXIT",
+          pid: c.pid,
+          role: c.role,
+          status: c.status,
+          error: c.error ?? "failed",
+          lastOutput: clipText(this.lastModelText(c.pid), CHILD_RESULT_CHARS),
+        };
+    this.channel.send(c.jobId, c.pid, parent.pid, body);
+  }
+
+  /** Text of the process's latest model reply, so a failed child's partial work is not lost. */
+  private lastModelText(pid: string): string {
+    const calls = this.bus.getEvents({ pid, limit: 100_000 }).filter((e) => e.type === "LLM_CALL");
+    for (let i = calls.length - 1; i >= 0; i--) {
+      const content = ((calls[i]!.payload as { response?: { content?: { type: string; text?: string }[] } }).response?.content ?? []);
+      const text = content.flatMap((b) => (b.type === "text" && b.text ? [b.text] : [])).join("\n").trim();
+      if (text) return text;
+    }
+    return "";
+  }
+
+  /**
+   * If every live process in the job is blocked on RECEIVE with an empty mailbox, no message
+   * can ever arrive. Wake them all with RECEIVE_CLOSED so they can finish with what they have.
+   */
+  private releaseDeadlockedReceivers(jobId: string): void {
+    const live = this.pm.list({ jobId }).filter((q) => !TERMINAL_STATES.has(q.status));
+    if (live.length === 0) return;
+    const stuck = live.every((q) => this.waitingOn(q.pid) === "RECEIVE" && this.channel.mailbox.pending(q.pid) === 0);
+    if (!stuck) return;
+    for (const q of live) this.wake(q.pid, RECEIVE_CLOSED, "NO_SENDERS");
   }
 
   private checkJob(jobId: string): void {

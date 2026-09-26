@@ -72,7 +72,10 @@ export function describe(e: KernelEvent): string {
     case "BLOCKED":
       return `blocked on ${p.reason}`;
     case "MESSAGE":
-      return `send -> PID ${p.to}: ${String(p.body).slice(0, 60)}`;
+      if (p.body?.type === "CHILD_EXIT") return `child ${p.body.pid} ${p.body.status} -> PID ${p.to}`;
+      return `send -> PID ${p.to}: ${(typeof p.body === "string" ? p.body : JSON.stringify(p.body)).slice(0, 60)}`;
+    case "BUDGET_EXTENDED":
+      return `budget rollover ${p.rollover}: +${p.added} tok, context compacted`;
     case "CHECKPOINT":
       return `checkpoint${p.note ? `: ${p.note}` : ""}`;
     case "PROCESS_EXIT":

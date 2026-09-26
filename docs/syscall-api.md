@@ -64,7 +64,7 @@ The model receives `value` as the `tool_result` content (strings as-is, objects 
 | `EXEC` | `EXEC` | `{cmd}` | `{stdout, stderr, exitCode}` | `UNSAFE_REPLAY` | |
 | `SPAWN` | `SPAWN` | `{role, goal, capabilities?, tokenBudget?, priority?}` | `{pid, capabilities, tokenBudget}` | `EFFECTFUL` | `PROCESS_CREATED`, `STATE_CHANGE` for the child |
 | `SEND` | `SEND` on the target pid | `{to, message}` | `{messageId, queued, wokeReceiver}` | `EFFECTFUL` | `MESSAGE`, and the receiver's `WAITING -> READY` |
-| `RECEIVE` | `RECEIVE` | `{}` | `{id, from, message}` | `EFFECTFUL` (consumes) | `STATE_CHANGE`, `BLOCKED` if the mailbox is empty |
+| `RECEIVE` | `RECEIVE` | `{}` | `{id, from, message}`, or `{closed, reason}` when no one can send | `EFFECTFUL` (consumes) | `STATE_CHANGE`, `BLOCKED` if the mailbox is empty |
 | `SLEEP` | none | `{ms}` (0 to 60000) | `{slept}` | `SAFE` | `STATE_CHANGE`, `BLOCKED` |
 | `CHECKPOINT` | none | `{note?}` | `{checkpointSeq}` | `SAFE` | `CHECKPOINT` |
 | `EXIT` | none | `{result}` | `{result}` | `TERMINAL` | `PROCESS_EXIT`, `STATE_CHANGE` |
@@ -97,6 +97,8 @@ Any violation throws `CapabilityEscalationError`. The syscall is logged with `de
 ### SEND, RECEIVE
 
 Each process has a FIFO mailbox stored in the `messages` table. `SEND` only reaches pids in the same job that are still alive. `RECEIVE` takes the oldest undelivered message. If there is none, the process blocks: `RUNNING -> WAITING`, `BLOCKED {reason: "RECEIVE"}`, and its slot is released. A `SEND` to a blocked receiver emits `MESSAGE` and then wakes it (`WAITING -> READY`). When the scheduler dispatches it, `RECEIVE` returns the message.
+
+If every live process in the job is blocked on `RECEIVE` with an empty mailbox, the kernel wakes them all and `RECEIVE` returns `{closed: true, reason}`. When a process ends for good, its live parent gets a `CHILD_EXIT` message (`{type, pid, role, status, result}` or `{..., error, lastOutput}`), which wakes a parent blocked on `RECEIVE`.
 
 ### SLEEP
 
