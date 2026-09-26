@@ -592,6 +592,23 @@ export class ChatRepo {
   }
 }
 
+export class JobOwnerRepo {
+  constructor(private db: DB) {}
+
+  set(jobId: string, userId: string): void {
+    this.db.prepare("INSERT OR REPLACE INTO job_owners (job_id, user_id) VALUES (?, ?)").run(jobId, userId);
+  }
+
+  owner(jobId: string): string | undefined {
+    return (this.db.prepare("SELECT user_id FROM job_owners WHERE job_id = ?").get(jobId) as { user_id: string } | undefined)?.user_id;
+  }
+
+  jobIds(userId: string): Set<string> {
+    const rows = this.db.prepare("SELECT job_id FROM job_owners WHERE user_id = ?").all(userId) as { job_id: string }[];
+    return new Set(rows.map((r) => r.job_id));
+  }
+}
+
 // ---------- metrics ----------
 
 export interface LlmCallRow {
@@ -727,6 +744,7 @@ export interface Repositories {
   metrics: MetricsRepo;
   users: UserRepo;
   chats: ChatRepo;
+  jobOwners: JobOwnerRepo;
 }
 
 export function createRepositories(path = ":memory:"): Repositories {
@@ -742,5 +760,6 @@ export function createRepositories(path = ":memory:"): Repositories {
     metrics: new MetricsRepo(db),
     users: new UserRepo(db),
     chats: new ChatRepo(db),
+    jobOwners: new JobOwnerRepo(db),
   };
 }

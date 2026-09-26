@@ -229,9 +229,14 @@ export class Kernel {
 
   // ---------------------------------------------------------------- jobs
 
-  submitJob(input: unknown, opts: { apiKey?: string } = {}): SubmitResult {
+  /**
+   * owner is the account that submitted the job. It is stored before the first event so the
+   * API can show each user only their own jobs, and never enters the spec or an event.
+   */
+  submitJob(input: unknown, opts: { apiKey?: string; owner?: string } = {}): SubmitResult {
     const { spec, processes } = normalizeJobSpec(input);
     const jobId = `job_${randomUUID().slice(0, 8)}`;
+    if (opts.owner) this.repos.jobOwners.set(jobId, opts.owner);
     if (opts.apiKey) {
       this.jobKeys.set(jobId, opts.apiKey);
       this.userKeyJobs.add(jobId);

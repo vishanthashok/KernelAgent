@@ -1,15 +1,22 @@
 // Thin client for the KernelAgent control API.
 import { getUserKey, modelProvider, type KeyProvider } from "./userKey";
-import { userToken } from "./userToken";
+import { cachedUserToken, userToken } from "./userToken";
 import type { Chat } from "./chats";
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
 const TOKEN = process.env.NEXT_PUBLIC_KERNEL_DEV_TOKEN;
 
-export const wsUrl = (sinceSeq: number) =>
-  `${API_URL.replace(/^http/, "ws")}/events/stream?sinceSeq=${sinceSeq}${TOKEN ? `&token=${encodeURIComponent(TOKEN)}` : ""}`;
+export const wsUrl = (sinceSeq: number, user?: string) =>
+  `${API_URL.replace(/^http/, "ws")}/events/stream?sinceSeq=${sinceSeq}${TOKEN ? `&token=${encodeURIComponent(TOKEN)}` : ""}${user ? `&userToken=${encodeURIComponent(user)}` : ""}`;
 
-/** Download link for a file an agent left in /output. */
-export const artifactUrl = (id: number) => `${API_URL}/artifacts/${id}${TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ""}`;
+/** Download link for a file an agent left in /output. Carries the user's token, since a link cannot set headers. */
+export const artifactUrl = (id: number) => {
+  const q = new URLSearchParams();
+  if (TOKEN) q.set("token", TOKEN);
+  const user = cachedUserToken();
+  if (user) q.set("userToken", user);
+  const s = q.toString();
+  return `${API_URL}/artifacts/${id}${s ? `?${s}` : ""}`;
+};
 
 const TIMEOUT_MS = 15_000;
 

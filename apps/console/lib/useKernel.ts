@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { KernelEvent } from "@kernelagent/kernel/types";
 import { applyEvent, type ReplayedProcess } from "@kernelagent/kernel/replay";
 import { api, wsUrl, type Stats } from "./api";
+import { userToken } from "./userToken";
 
 export interface JobInfo {
   id: string;
@@ -89,8 +90,11 @@ export function useKernel(): KernelState {
       dirty = true;
     };
 
-    const connect = () => {
-      ws = new WebSocket(wsUrl(store.current.lastSequence));
+    // With accounts on, the stream needs the user's token and carries only their own jobs.
+    const connect = async () => {
+      const token = await userToken();
+      if (closed) return;
+      ws = new WebSocket(wsUrl(store.current.lastSequence, token));
       ws.onopen = () => setConnected(true);
       ws.onmessage = (m) => {
         const msg = JSON.parse(String(m.data));
@@ -98,11 +102,11 @@ export function useKernel(): KernelState {
       };
       ws.onclose = () => {
         setConnected(false);
-        if (!closed) retry = setTimeout(connect, 1000);
+        if (!closed) retry = setTimeout(() => void connect(), 1000);
       };
       ws.onerror = () => ws?.close();
     };
-    connect();
+    void connect();
 
     // Batch renders: at most one per animation frame, however fast events arrive.
     let raf = 0;

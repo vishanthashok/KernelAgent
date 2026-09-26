@@ -72,9 +72,12 @@ export function registerAccounts(app: FastifyInstance, kernel: Kernel, secret: s
   const repos = kernel.repos;
   const limiter = new AttemptLimiter();
 
+  // The header, or ?userToken= for the WebSocket and file downloads, which cannot set headers.
   const userOf = (req: FastifyRequest) => {
     const h = req.headers[USER_TOKEN_HEADER];
-    const uid = verifyUserToken(secret, typeof h === "string" ? h : undefined, kernel.now());
+    const q = (req.query as { userToken?: unknown } | undefined)?.userToken;
+    const token = typeof h === "string" ? h : typeof q === "string" ? q : undefined;
+    const uid = verifyUserToken(secret, token, kernel.now());
     return uid && repos.users.get(uid) ? uid : undefined;
   };
   const requireUser = (req: FastifyRequest, reply: FastifyReply) => {
