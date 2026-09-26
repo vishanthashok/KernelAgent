@@ -3,6 +3,7 @@
 // and a content area. Pages put a PageHeader at the top of their content.
 import Link from "next/link";
 import { useTheme } from "@/lib/theme";
+import { Logo } from "./Logo";
 
 export type Section = "chat" | "console" | "dashboard";
 
@@ -59,8 +60,8 @@ export function AppShell({ active, children, status }: { active: Section; childr
     <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
       {/* Rail (tablet and up) */}
       <aside className="hidden w-[68px] shrink-0 flex-col items-center bg-nav py-3 md:flex">
-        <Link href="/" className="mb-5 flex h-9 w-9 items-center justify-center rounded-md bg-accent font-mono text-sm font-bold text-on-accent" title="KernelAgent">
-          K
+        <Link href="/" className="logo-link mb-5 block rounded-lg" title="KernelAgent" aria-label="KernelAgent home">
+          <Logo size={38} />
         </Link>
         <nav className="flex w-full flex-1 flex-col gap-1 px-1.5">
           {NAV.map((n) => (
@@ -90,8 +91,8 @@ export function AppShell({ active, children, status }: { active: Section; childr
 
       {/* Top bar (phones) */}
       <header className="flex h-12 shrink-0 items-center gap-1 bg-nav px-2 md:hidden">
-        <Link href="/" className="mr-1 flex h-8 w-8 items-center justify-center rounded-md bg-accent font-mono text-sm font-bold text-on-accent">
-          K
+        <Link href="/" className="logo-link mr-1 block rounded-lg" aria-label="KernelAgent home">
+          <Logo size={32} />
         </Link>
         {NAV.map((n) => (
           <Link
