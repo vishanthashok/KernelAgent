@@ -80,9 +80,6 @@ export function ConnectKeys({ user }: { user?: { name?: string; email?: string; 
           <Link href="/chat" className={`pill pill-light px-5 py-2 text-sm ${ready ? "" : "pointer-events-none opacity-40"}`} aria-disabled={!ready}>
             Open the chat →
           </Link>
-          <Link href="/console" className="pill pill-ghost px-5 py-2 text-sm">
-            Process console
-          </Link>
           <span className="text-xs text-term-dim">You can change keys later from the chat&apos;s Advanced panel.</span>
         </div>
 
