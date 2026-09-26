@@ -78,8 +78,18 @@ export function percentile(sorted: number[], p: number): number {
   return sorted[i]!;
 }
 
-function totalsFor(repo: MetricsRepo, from: number, to: number): Totals {
-  return summarize(repo.llmCalls(from, to), repo.syscalls(from, to), repo.terminalStates(from, to), repo.crashes(from, to).length);
+/** Which jobs a viewer may see. Undefined means all. */
+export type JobFilter = ((jobId: string) => boolean) | undefined;
+
+const only = <T extends { jobId: string }>(rows: T[], canSee: JobFilter): T[] => (canSee ? rows.filter((r) => canSee(r.jobId)) : rows);
+
+function totalsFor(repo: MetricsRepo, from: number, to: number, canSee: JobFilter): Totals {
+  return summarize(
+    only(repo.llmCalls(from, to), canSee),
+    only(repo.syscalls(from, to), canSee),
+    only(repo.terminalStates(from, to), canSee),
+    only(repo.crashes(from, to), canSee).length,
+  );
 }
 
 function summarize(
@@ -113,17 +123,17 @@ function summarize(
   };
 }
 
-export function buildMetrics(repo: MetricsRepo, range: RangeKey, now: number): Metrics {
+export function buildMetrics(repo: MetricsRepo, range: RangeKey, now: number, canSee?: JobFilter): Metrics {
   const span = RANGES[range];
   const bucketMs = span / BUCKETS;
   // Align the window to bucket edges so buckets don't shift between refreshes.
   const to = Math.ceil(now / bucketMs) * bucketMs;
   const from = to - span;
 
-  const calls = repo.llmCalls(from, to);
-  const sys = repo.syscalls(from, to);
-  const states = repo.terminalStates(from, to);
-  const crashes = repo.crashes(from, to);
+  const calls = only(repo.llmCalls(from, to), canSee);
+  const sys = only(repo.syscalls(from, to), canSee);
+  const states = only(repo.terminalStates(from, to), canSee);
+  const crashes = only(repo.crashes(from, to), canSee);
 
   const typeCounts = new Map<string, number>();
   for (const s of sys) typeCounts.set(s.type, (typeCounts.get(s.type) ?? 0) + 1);
@@ -238,7 +248,7 @@ export function buildMetrics(repo: MetricsRepo, range: RangeKey, now: number): M
     buckets,
     syscallTypes,
     totals: summarize(calls, sys, states, crashes.length),
-    previous: totalsFor(repo, from - span, from),
+    previous: totalsFor(repo, from - span, from, canSee),
     byModel,
     topJobs,
     recentErrors,

@@ -132,7 +132,7 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **With accounts on, jobs, memory, and chats need a user.** `POST /jobs` rewrites `memoryScope` to `u<userId>_<chatId>`, and the memory routes do the same, so a user only reaches their own memory. Deleting a memory entry by id requires `?scope=` and matches both.
 - **Provider sign-in links by email.** GitHub and Google verify the email, so their sign-in finds or creates the account with it. Email sign-up on an address that already has a provider account is refused, since only the provider can prove the address.
 - **Chats move into the account on first sign-in** from this browser's localStorage, then local storage is cleared. Saves are debounced and send only chats whose JSON changed.
-- **Known gap:** the event stream (`WS /events/stream`) and the `/console` monitor still show every job on the server. Jobs have no owner yet.
+- **Jobs have owners.** `Kernel.submitJob(spec, { owner })` writes `job_owners` before the job's first event, and the owner never enters the spec or an event. With accounts on, every read route (`/jobs`, `/processes`, `/messages`, `/sandboxes`, `/artifacts`, `/events`, `/metrics`) and the WebSocket show only the caller's own jobs. Kill and signal work only on them. Another user's job, process, or file answers 404. The socket and file downloads take the token as `?userToken=`, since they cannot set headers. `/stats` stays global: it holds counts, not content.
 - **CORS allows PUT and DELETE.** It allowed only GET, HEAD, and POST before, which also blocked the console's memory deletes across origins.
 
 ## Connectors (planned)

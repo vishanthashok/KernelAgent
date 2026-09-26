@@ -114,6 +114,7 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 
 - `ACCOUNTS_SECRET` on both API and console turns them on. API side: `apps/api/accounts.ts` (signup, login, oauth, `/me`, `/chats`), `userScope()`, `UserRepo`/`ChatRepo` in `packages/db`. Console side: `auth.ts` (Credentials provider, `jwt` callback maps provider sign-ins to an account), `lib/server-api.ts`, `app/api/token/route.ts`, `lib/userToken.ts` (browser token cache, sent as `x-user-token` by `lib/api.ts`), `/signup`, `components/landing/AuthCard.tsx`.
 - `ChatApp` loads chats from `/chats` when a token exists, uploads local chats once, and saves changed chats. Without a token it uses localStorage as before.
+- Jobs have owners (`job_owners`, `Kernel.submitJob(spec, { owner })`). With accounts on, the API's `viewer()` in `server.ts` filters every read route and the WebSocket to the caller's own jobs.
 - Tests: `tests/accounts.test.ts`.
 
 ## Chat

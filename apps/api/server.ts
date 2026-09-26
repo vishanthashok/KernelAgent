@@ -42,6 +42,27 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
 
   const accounts: Accounts | undefined = opts.accountsSecret ? registerAccounts(app, kernel, opts.accountsSecret) : undefined;
 
+  /**
+   * Which jobs the caller may see. With accounts off, all of them. With accounts on, only
+   * jobs they submitted; null after a 401 was sent. Owners are cached per call.
+   */
+  const viewer = (req: FastifyRequest, reply: FastifyReply): { uid?: string; canSee: (jobId: string) => boolean } | null => {
+    if (!accounts) return { canSee: () => true };
+    const uid = accounts.requireUser(req, reply);
+    if (!uid) return null;
+    const seen = new Map<string, boolean>();
+    return {
+      uid,
+      canSee: (jobId) => {
+        let ok = seen.get(jobId);
+        if (ok === undefined) seen.set(jobId, (ok = kernel.repos.jobOwners.owner(jobId) === uid));
+        return ok;
+      },
+    };
+  };
+  /** The job a process belongs to, from the live table or the DB. */
+  const jobOfPid = (pid: string) => kernel.pm.get(pid)?.jobId ?? kernel.repos.processes.get(pid)?.jobId;
+
   /** A process row enriched with live fields the table does not store. */
   const liveProcess = (pid: string) => {
     const row = kernel.repos.processes.get(pid);
@@ -102,9 +123,11 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
   app.post("/jobs", async (req, reply) => {
     // With accounts on, jobs need a signed-in user, and chat memory is kept per user.
     let body = req.body;
+    let owner: string | undefined;
     if (accounts) {
       const uid = accounts.requireUser(req, reply);
       if (!uid) return;
+      owner = uid;
       const scope = (body as { memoryScope?: unknown } | null)?.memoryScope;
       if (typeof scope === "string") body = { ...(body as object), memoryScope: userScope(uid, scope) };
     }
@@ -125,34 +148,60 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
       }
     }
     try {
-      return reply.code(201).send(kernel.submitJob(body, apiKey ? { apiKey } : {}));
+      return reply.code(201).send(kernel.submitJob(body, { ...(apiKey ? { apiKey } : {}), ...(owner ? { owner } : {}) }));
     } catch (err) {
       if (err instanceof JobSpecError) return reply.code(400).send({ error: err.message });
       throw err;
     }
   });
 
-  app.get("/jobs", async () => ({ jobs: kernel.listJobs() }));
+  // With accounts on, every read below shows only the caller's own jobs, and a job, process,
+  // or file of someone else's answers 404 as if it did not exist.
+  app.get("/jobs", async (req, reply) => {
+    const v = viewer(req, reply);
+    if (!v) return;
+    return { jobs: kernel.listJobs().filter((j) => v.canSee(j.id)) };
+  });
 
   app.get<{ Params: { id: string } }>("/jobs/:id", async (req, reply) => {
+    const v = viewer(req, reply);
+    if (!v) return;
     const job = kernel.getJob(req.params.id);
-    if (!job) return reply.code(404).send({ error: "no such job" });
+    if (!job || !v.canSee(job.id)) return reply.code(404).send({ error: "no such job" });
     const processes = kernel.repos.processes.list({ jobId: job.id }).map((p) => liveProcess(p.pid));
     return { job, processes };
   });
 
   // ----------------------------------------------------------- processes
 
-  app.get<{ Querystring: { jobId?: string; status?: string } }>("/processes", async (req) => ({
-    processes: kernel.repos.processes
-      .list({
-        ...(req.query.jobId ? { jobId: req.query.jobId } : {}),
-        ...(req.query.status ? { status: req.query.status } : {}),
-      })
-      .map((p) => liveProcess(p.pid)),
-  }));
+  app.get<{ Querystring: { jobId?: string; status?: string } }>("/processes", async (req, reply) => {
+    const v = viewer(req, reply);
+    if (!v) return;
+    return {
+      processes: kernel.repos.processes
+        .list({
+          ...(req.query.jobId ? { jobId: req.query.jobId } : {}),
+          ...(req.query.status ? { status: req.query.status } : {}),
+        })
+        .filter((p) => v.canSee(p.jobId))
+        .map((p) => liveProcess(p.pid)),
+    };
+  });
+
+  /** A 404 unless the caller may see this process's job. True when the route may go on. */
+  const ownsPid = (req: FastifyRequest, reply: FastifyReply, pid: string): boolean => {
+    const v = viewer(req, reply);
+    if (!v) return false;
+    const jobId = jobOfPid(pid);
+    if (!jobId || !v.canSee(jobId)) {
+      void reply.code(404).send({ error: "no such process" });
+      return false;
+    }
+    return true;
+  };
 
   app.get<{ Params: { pid: string }; Querystring: { limit?: string } }>("/processes/:pid", async (req, reply) => {
+    if (!ownsPid(req, reply, req.params.pid)) return;
     const process = liveProcess(req.params.pid);
     if (!process) return reply.code(404).send({ error: "no such process" });
     const events = kernel.bus.getEvents({ pid: req.params.pid, limit: num(req.query.limit, 5000) });
@@ -160,6 +209,7 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
   });
 
   app.post<{ Params: { pid: string } }>("/processes/:pid/kill", async (req, reply) => {
+    if (!ownsPid(req, reply, req.params.pid)) return;
     if (!kernel.pm.get(req.params.pid)) {
       if (kernel.repos.processes.get(req.params.pid)) return reply.code(409).send({ error: "process belongs to a previous kernel run" });
       return reply.code(404).send({ error: "no such process" });
@@ -168,6 +218,7 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
   });
 
   app.post<{ Params: { pid: string }; Body: { signal?: string } }>("/processes/:pid/signal", async (req, reply) => {
+    if (!ownsPid(req, reply, req.params.pid)) return;
     const signal = req.body?.signal;
     if (!signal) return reply.code(400).send({ error: "body must be {signal: approve|deny|resume|retry|kill}" });
     const res = kernel.signal(req.params.pid, signal);
@@ -176,30 +227,51 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
 
   // ------------------------------------------------------ IPC, sandboxes
 
-  app.get<{ Querystring: { jobId?: string; pid?: string } }>("/messages", async (req) => ({
-    messages: kernel.channel.mailbox.list({
-      ...(req.query.jobId ? { jobId: req.query.jobId } : {}),
-      ...(req.query.pid ? { pid: req.query.pid } : {}),
-    }),
-  }));
+  app.get<{ Querystring: { jobId?: string; pid?: string } }>("/messages", async (req, reply) => {
+    const v = viewer(req, reply);
+    if (!v) return;
+    return {
+      messages: kernel.channel.mailbox
+        .list({
+          ...(req.query.jobId ? { jobId: req.query.jobId } : {}),
+          ...(req.query.pid ? { pid: req.query.pid } : {}),
+        })
+        .filter((m) => v.canSee(m.jobId)),
+    };
+  });
 
-  app.get("/sandboxes", async () => ({
-    provider: kernel.sandbox?.provider ?? null,
-    sandboxes: kernel.sandbox?.list() ?? [],
-  }));
+  app.get("/sandboxes", async (req, reply) => {
+    const v = viewer(req, reply);
+    if (!v) return;
+    return {
+      provider: kernel.sandbox?.provider ?? null,
+      sandboxes: (kernel.sandbox?.list() ?? []).filter((s) => {
+        const jobId = jobOfPid(s.pid);
+        return !!jobId && v.canSee(jobId);
+      }),
+    };
+  });
 
   // ----------------------------------------------------------- artifacts
 
-  app.get<{ Querystring: { jobId?: string; pid?: string } }>("/artifacts", async (req) => ({
-    artifacts: kernel.repos.artifacts.list({
-      ...(req.query.jobId ? { jobId: req.query.jobId } : {}),
-      ...(req.query.pid ? { pid: req.query.pid } : {}),
-    }),
-  }));
+  app.get<{ Querystring: { jobId?: string; pid?: string } }>("/artifacts", async (req, reply) => {
+    const v = viewer(req, reply);
+    if (!v) return;
+    return {
+      artifacts: kernel.repos.artifacts
+        .list({
+          ...(req.query.jobId ? { jobId: req.query.jobId } : {}),
+          ...(req.query.pid ? { pid: req.query.pid } : {}),
+        })
+        .filter((a) => v.canSee(a.jobId)),
+    };
+  });
 
   app.get<{ Params: { id: string } }>("/artifacts/:id", async (req, reply) => {
+    const v = viewer(req, reply);
+    if (!v) return;
     const a = kernel.repos.artifacts.get(Number(req.params.id));
-    if (!a) return reply.code(404).send({ error: "no such artifact" });
+    if (!a || !v.canSee(a.meta.jobId)) return reply.code(404).send({ error: "no such artifact" });
     const name = a.meta.path.split("/").pop() ?? "file";
     return reply
       .header("content-type", a.meta.mime)
@@ -215,10 +287,12 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
   app.get<{ Querystring: { range?: string } }>("/metrics", async (req, reply) => {
     const range = req.query.range ?? "1h";
     if (!isRange(range)) return reply.code(400).send({ error: `range must be one of ${Object.keys(RANGES).join(", ")}` });
+    const v = viewer(req, reply);
+    if (!v) return;
     const states: Record<string, number> = { NEW: 0, READY: 0, RUNNING: 0, WAITING: 0, TERMINATED: 0, FAILED: 0 };
-    for (const p of kernel.pm.list()) states[p.status] = (states[p.status] ?? 0) + 1;
+    for (const p of kernel.pm.list()) if (v.canSee(p.jobId)) states[p.status] = (states[p.status] ?? 0) + 1;
     return {
-      ...buildMetrics(kernel.repos.metrics, range, kernel.now()),
+      ...buildMetrics(kernel.repos.metrics, range, kernel.now(), accounts ? v.canSee : undefined),
       now: { states, running: kernel.scheduler.running(), queueDepth: kernel.scheduler.queueDepth(), maxConcurrency: kernel.config.maxConcurrency },
     };
   });
@@ -268,7 +342,9 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
     return { cleared: kernel.repos.memories.clear(scope) };
   });
 
-  app.get<{ Querystring: { sinceSeq?: string; jobId?: string; pid?: string; limit?: string } }>("/events", async (req) => {
+  app.get<{ Querystring: { sinceSeq?: string; jobId?: string; pid?: string; limit?: string } }>("/events", async (req, reply) => {
+    const v = viewer(req, reply);
+    if (!v) return;
     const sinceSeq = num(req.query.sinceSeq, 0);
     const limit = Math.min(Math.max(num(req.query.limit, 500), 1), 5000);
     const events = kernel.bus.getEvents({
@@ -278,7 +354,8 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
       ...(req.query.pid ? { pid: req.query.pid } : {}),
     });
     const last = events[events.length - 1];
-    return { events, nextSeq: last ? last.sequence : sinceSeq, hasMore: events.length === limit };
+    // Paging follows the raw log, so a page can hold fewer events than the limit.
+    return { events: events.filter((e) => v.canSee(e.jobId)), nextSeq: last ? last.sequence : sinceSeq, hasMore: events.length === limit };
   });
 
   /**
@@ -286,7 +363,23 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
    * The server backfills everything after N from the log, then streams live events,
    * with no gaps and no duplicates.
    */
-  app.get<{ Querystring: { sinceSeq?: string } }>("/events/stream", { websocket: true }, (socket, req) => {
+  // With accounts on, the socket needs ?userToken= and carries only the user's own jobs.
+  app.get<{ Querystring: { sinceSeq?: string; userToken?: string } }>("/events/stream", { websocket: true }, (socket, req) => {
+    let canSee: (jobId: string) => boolean = () => true;
+    if (accounts) {
+      const uid = accounts.userOf(req);
+      if (!uid) {
+        socket.send(JSON.stringify({ type: "error", error: "sign in first" }));
+        socket.close(4401, "sign in first");
+        return;
+      }
+      const seen = new Map<string, boolean>();
+      canSee = (jobId) => {
+        let ok = seen.get(jobId);
+        if (ok === undefined) seen.set(jobId, (ok = kernel.repos.jobOwners.owner(jobId) === uid));
+        return ok;
+      };
+    }
     let lastSent = -1;
     let ready = false;
     const buffered: KernelEvent[] = [];
@@ -294,7 +387,7 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
     const send = (e: KernelEvent) => {
       if (e.sequence <= lastSent) return;
       lastSent = e.sequence;
-      socket.send(JSON.stringify({ type: "event", event: e }));
+      if (canSee(e.jobId)) socket.send(JSON.stringify({ type: "event", event: e }));
     };
 
     // Subscribe first so nothing emitted during backfill is lost.

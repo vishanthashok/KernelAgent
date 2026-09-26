@@ -3,6 +3,11 @@
 let cache: { token: string | undefined; until: number } | undefined;
 let inflight: Promise<string | undefined> | undefined;
 
+/** The token if one is already fetched and fresh. For links, which cannot wait. */
+export function cachedUserToken(): string | undefined {
+  return cache && Date.now() < cache.until ? cache.token : undefined;
+}
+
 export function userToken(): Promise<string | undefined> {
   if (cache && Date.now() < cache.until) return Promise.resolve(cache.token);
   inflight ??= fetch("/api/token", { cache: "no-store" })

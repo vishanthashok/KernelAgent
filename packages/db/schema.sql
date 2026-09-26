@@ -110,3 +110,11 @@ CREATE TABLE IF NOT EXISTS chats (
   updated_at  INTEGER NOT NULL,
   PRIMARY KEY (user_id, id)
 );
+
+-- Who submitted each job, when accounts are on. Written before the job's first event, so
+-- every event of a job can be matched to its owner. Kept out of specs and events.
+CREATE TABLE IF NOT EXISTS job_owners (
+  job_id   TEXT PRIMARY KEY,
+  user_id  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS job_owners_user ON job_owners(user_id);
