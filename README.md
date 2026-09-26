@@ -152,7 +152,7 @@ Each process has a FIFO mailbox stored in SQLite. `SEND` queues a message for a 
 - **Retry.** A failed process with `retryCount < maxRetries` (default 2) goes back to `READY`. It resumes from its last checkpoint if it has one, otherwise it starts clean. Budget failures are not retried.
 - **Retry safety.** Syscalls before the last checkpoint are not replayed. Syscalls after it may run again. This is at-least-once, not exactly-once. The model is told to checkpoint after risky effects.
 - **Human approval.** A capability marked `requiresApproval` parks the process in `WAITING` until `POST /processes/:pid/signal` sends `approve` or `deny`. The console inspector has the buttons.
-- **Budgets.** Token budgets per process and per job. Going over fails the process with `TOKEN_BUDGET_EXCEEDED`.
+- **Budgets.** Token budgets per process and per job, with cached input charged at its price weight. A process near its budget rolls over to a compacted history (up to `MAX_ROLLOVERS` times), then is asked for its answer. A process that still goes over fails with `TOKEN_BUDGET_EXCEEDED`, and its parent gets a `CHILD_EXIT` message with its last output.
 
 ## Observability
 
@@ -210,6 +210,7 @@ curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/js
 | `SANDBOX_PROVIDER` | `local` | `local` or `e2b` |
 | `E2B_API_KEY` | | Required for `e2b`. Without it `local` is used. |
 | `MAX_CONCURRENCY` | `4` | Running process cap |
+| `MAX_ROLLOVERS` | `2` | Budget rollovers per process before it must answer |
 | `AGING_FACTOR` | `1` | Priority points per second spent READY |
 | `RATE_LIMIT_RPM` / `RATE_LIMIT_TPM` | `50` / `200000` | Provider rate limits |
 | `KERNEL_DB_PATH` | `data/kernelagent.db` | SQLite file. Relative paths resolve from where you ran the command. |

@@ -6,7 +6,8 @@ const loopForever = [...Array(200)].map(() => ({ tool: "SLEEP", input: { ms: 0 }
 
 describe("token budgets", () => {
   it("moves a process over its budget to FAILED with TOKEN_BUDGET_EXCEEDED and does not retry", async () => {
-    const { kernel } = makeKernel({ mock: { scripts: { hog: loopForever } } });
+    // No rollovers, so the hard limit is what stops it.
+    const { kernel } = makeKernel({ mock: { scripts: { hog: loopForever } }, config: { maxRollovers: 0 } });
     kernel.start();
     const { jobId, pids } = kernel.submitJob({ process: { role: "hog", goal: "burn tokens", tokenBudget: 3000 } });
     const job = await kernel.waitForJob(jobId);

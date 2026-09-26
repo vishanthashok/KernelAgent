@@ -66,6 +66,8 @@ export function stepsFor(events: KernelEvent[], jobId: string): Step[] {
       if (s) out.push({ ...base, ...s });
     } else if (e.type === "BLOCKED" && p.reason === "APPROVAL") {
       out.push({ ...base, text: "Waiting for your approval", tone: "warn" });
+    } else if (e.type === "BUDGET_EXTENDED") {
+      out.push({ ...base, text: `Near its token budget: continuing with a compacted history (+${p.added} tokens)`, tone: "warn" });
     } else if (e.type === "ARTIFACT") {
       out.push({ ...base, text: `Saved file ${p.path}`, tone: "file" });
     } else if (e.type === "PROCESS_CRASH") {

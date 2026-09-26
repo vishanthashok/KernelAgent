@@ -66,7 +66,10 @@ describe("integration: example workloads with MockLLM + LocalSandbox", () => {
     expect(checker.capabilities).toEqual([{ type: "SEND", scope: pids.reviewer }]);
     const denied = kernel.bus.getEvents({ jobId, limit: 10_000 }).filter((e) => e.type === "SYSCALL" && (e.payload as any).denied);
     expect(denied).toHaveLength(1);
-    expect(kernel.channel.mailbox.list({ jobId })).toHaveLength(5);
-    expect(kernel.channel.mailbox.list({ jobId }).every((m) => m.delivered)).toBe(true);
+    // Five SENDs plus the CHILD_EXIT the fact-checker's exit sends to the reviewer.
+    const mail = kernel.channel.mailbox.list({ jobId });
+    expect(mail).toHaveLength(6);
+    expect(mail.filter((m) => (m.body as any)?.type === "CHILD_EXIT")).toHaveLength(1);
+    expect(mail.filter((m) => (m.body as any)?.type !== "CHILD_EXIT").every((m) => m.delivered)).toBe(true);
   });
 });

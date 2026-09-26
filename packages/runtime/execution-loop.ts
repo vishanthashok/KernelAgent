@@ -37,8 +37,24 @@ export async function runExecutionLoop(kernel: Kernel, h: RunHandle, opts: Execu
       ? ProcessContext.restore(proc, h.resume.context as ContextSnapshot, h.resume.checkpointSeq, peers, memory)
       : ProcessContext.fresh(proc, peers, memory);
 
+  let wrappedUp = false;
+  let lastCallTokens = 0;
   for (let turn = 0; turn < maxTurns; turn++) {
+    // Near the budget: continue from a compacted history if a rollover is left, else ask for
+    // the answer now. Either way the process ends with a result instead of a budget failure.
+    // "Near" means past ROLLOVER_AT, or less than two calls like the last one left.
+    const now = kernel.pm.require(h.pid);
+    const left = kernel.budgetLeft(h.pid);
+    if (left <= (1 - ROLLOVER_AT) * now.tokenBudget || left < 2 * lastCallTokens) {
+      if (kernel.rollover(h)) ctx.compact(now.goal);
+      else if (!wrappedUp) {
+        ctx.appendNote(WRAP_UP_NOTE);
+        wrappedUp = true;
+      }
+    }
+    const before = kernel.pm.require(h.pid).tokensUsed;
     const res = await kernel.callModel(h, { system: ctx.system, messages: ctx.messages, tools });
+    lastCallTokens = kernel.pm.require(h.pid).tokensUsed - before;
     ctx.messages.push({ role: "assistant", content: res.content });
 
     const uses = res.content.filter((b): b is ToolUseBlock => b.type === "tool_use");
@@ -75,6 +91,12 @@ export async function runExecutionLoop(kernel: Kernel, h: RunHandle, opts: Execu
   }
   throw new Error(`MAX_TURNS: no EXIT after ${maxTurns} turns`);
 }
+
+/** Share of the token budget after which a process rolls over or wraps up. */
+export const ROLLOVER_AT = 0.8;
+
+const WRAP_UP_NOTE =
+  "Your token budget is nearly spent. Call EXIT now with your best answer so far, and list what is still left to do.";
 
 /** Longest tool result the model sees. The SYSCALL event keeps the full value. */
 export const MAX_TOOL_RESULT_CHARS = 16_000;

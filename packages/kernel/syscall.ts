@@ -13,7 +13,7 @@ import { withSpan } from "@kernelagent/telemetry";
 import { CapabilityEscalationError, normalizePath, type CapabilityRequest } from "./capabilities.ts";
 import { CapabilitySchema } from "./job-spec.ts";
 import type { Kernel, RunHandle } from "./kernel.ts";
-import type { Capability, Process } from "./types.ts";
+import { RECEIVE_CLOSED, type Capability, type Process } from "./types.ts";
 
 export type RetrySafety = "SAFE" | "EFFECTFUL" | "UNSAFE_REPLAY" | "TERMINAL";
 
@@ -219,7 +219,12 @@ export const SYSCALLS: Registry = {
       for (;;) {
         const m = k.channel.tryReceive(h.pid);
         if (m) return { id: m.id, from: m.fromPid, message: m.body };
-        await k.block(h, "RECEIVE", { mailbox: h.pid });
+        const v = await k.block(h, "RECEIVE", { mailbox: h.pid });
+        if (v === RECEIVE_CLOSED) {
+          const late = k.channel.tryReceive(h.pid);
+          if (late) return { id: late.id, from: late.fromPid, message: late.body };
+          return { closed: true, reason: "no process left in this job can send to you. Finish with what you have." };
+        }
       }
     },
   },
