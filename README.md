@@ -208,7 +208,8 @@ curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/js
 | `ANTHROPIC_API_KEY` | | Server key for Claude models. Without any key the mock is used, unless `REQUIRE_USER_KEY=true`. |
 | `OPENAI_API_KEY` | | Server key for GPT models. With `LLM_PROVIDER=anthropic` it turns on `multi`. |
 | `ANTHROPIC_MODEL` / `OPENAI_MODEL` | `claude-opus-5` / `gpt-5` | Default model ids. A job can pick another with `"model"` in its spec, or from the chat's model picker. |
-| `REQUIRE_USER_KEY` | | `true` makes every job bring its own key (the `x-provider-key` header, set from `/connect`). The server's keys are never used. |
+| `REQUIRE_USER_KEY` | | `true` makes every job bring its own key (the `x-provider-key` header, set from `/connect`). The server's keys are never used. The API server always runs this way unless `ALLOW_SERVER_KEY=true`. |
+| `ALLOW_SERVER_KEY` | | API only. `true` lets jobs without a key run on the server's `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`. Off by default, so a public deploy never bills the owner. |
 | `SANDBOX_PROVIDER` | `local` | `local` or `e2b` |
 | `E2B_API_KEY` | | Required for `e2b`. Without it `local` is used. |
 | `MAX_CONCURRENCY` | `4` | Running process cap |
@@ -220,6 +221,8 @@ curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/js
 | `KERNEL_DEV_TOKEN` | | If set, API requests need `Authorization: Bearer <token>` |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:4000` | API the console connects to |
 | `AUTH_SECRET` | | Console. Turns on sign-in together with at least one provider below. Make one with `npx auth secret`. |
+| `ACCOUNTS_SECRET` | | API and console, same value. Turns on accounts: email sign-up, and chats plus memory saved per user in the API's database. Make one with `openssl rand -base64 32`. |
+| `API_URL` | `NEXT_PUBLIC_API_URL` | Console. Where its server calls the API's `/accounts` routes, if different from the browser's URL. |
 | `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | | Console. GitHub OAuth app |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | | Console. Google OAuth client |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | | OTLP/HTTP endpoint. Console exporter if unset. |
@@ -233,9 +236,9 @@ To turn it on (for example on Vercel):
 2. Google: Cloud Console → APIs & Services → Credentials → OAuth client ID (Web). Redirect URI: `https://<your-console-domain>/api/auth/callback/google`.
 3. Set `AUTH_SECRET` and the id and secret for each provider you set up. Redeploy.
 
-Sessions are JWT cookies. There is no user table. The login gates `/chat`, `/console`, `/dashboard`, and `/connect`. It does not pay for model calls: each visitor's own key does.
+Sessions are JWT cookies. With `ACCOUNTS_SECRET` set on both the API and the console, visitors can also create an account with email and password (`/signup`). The first GitHub or Google sign-in creates an account too, linked by email. Accounts live in the API's SQLite database (`users`, `chats`). Each user's chats and agent memory are saved there and follow them to any device. Passwords are hashed with scrypt. API keys are never stored in an account. Without `ACCOUNTS_SECRET`, sign-in still works and chats stay in the browser. The login gates `/chat`, `/console`, `/dashboard`, and `/connect`. It does not pay for model calls: each visitor's own key does.
 
-For a public deploy, run the API with `LLM_PROVIDER=multi REQUIRE_USER_KEY=true`. Visitors add keys on `/connect`, which checks each key against `GET /models?provider=`. Keys stay in the browser and go to the API per job as a header. The API picks Claude or GPT from the job's model and refuses a key from the other provider.
+The API never answers with its own keys unless `ALLOW_SERVER_KEY=true`. A job without the visitor's key is refused, and the chat sends the visitor to `/connect`. `LLM_PROVIDER=anthropic` is served as `multi` in this mode, so OpenAI keys work too. Visitors add keys on `/connect`, which checks each key against `GET /models?provider=`. Keys stay in the browser and go to the API per job as a header. The API picks Claude or GPT from the job's model and refuses a key from the other provider.
 
 Claude.ai and ChatGPT subscriptions cannot be used here. Neither company lets third-party apps run models on a consumer account, so an API key is the only way in.
 

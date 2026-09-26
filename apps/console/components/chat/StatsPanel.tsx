@@ -343,7 +343,7 @@ function MemorySection({ k, chatId, jobs }: { k: KernelState; chatId: string; jo
                 <span className={`font-mono text-[10px] uppercase ${m.kind === "note" ? "text-ok" : "text-term-accent"}`}>{m.kind}</span>
                 {m.pid && <span className="font-mono text-[10px] text-term-dim">pid {m.pid}</span>}
                 <button
-                  onClick={() => void api.deleteMemory(m.id).then(load)}
+                  onClick={() => void api.deleteMemory(m.id, chatId).then(load)}
                   className="ml-auto text-term-dim opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger"
                   title="Forget this"
                 >

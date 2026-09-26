@@ -108,5 +108,5 @@ export function estimateTokens(value: unknown): number {
 }
 
 export { MockLLM, type MockScript, type MockStep, type MockStepValue, type MockContext, type MockLLMOptions } from "./mock.ts";
-export { createModelClient } from "./factory.ts";
+export { apiModelEnv, createModelClient } from "./factory.ts";
 export { RoutingClient, providerForKey } from "./router.ts";

@@ -110,12 +110,18 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 - `proxy.ts` gates `/chat`, `/console`, `/dashboard`, `/connect`. `components/shell/UserMenu.tsx` shows the avatar, "API keys", and "Sign out".
 - Keys: `lib/userKey.ts` stores one per provider and migrates the old single key. `api.submitJob(spec, model)` sends the key for the model's provider. `useModels` merges each provider's models from the user's key or the server.
 
+## Accounts
+
+- `ACCOUNTS_SECRET` on both API and console turns them on. API side: `apps/api/accounts.ts` (signup, login, oauth, `/me`, `/chats`), `userScope()`, `UserRepo`/`ChatRepo` in `packages/db`. Console side: `auth.ts` (Credentials provider, `jwt` callback maps provider sign-ins to an account), `lib/server-api.ts`, `app/api/token/route.ts`, `lib/userToken.ts` (browser token cache, sent as `x-user-token` by `lib/api.ts`), `/signup`, `components/landing/AuthCard.tsx`.
+- `ChatApp` loads chats from `/chats` when a token exists, uploads local chats once, and saves changed chats. Without a token it uses localStorage as before.
+- Tests: `tests/accounts.test.ts`.
+
 ## Chat
 
 - `/chat` is the chat (`apps/console/components/chat/*`), `/console` is the monitor (`components/Console.tsx`).
 - Each user message is one job with one process. The goal is the message alone. With "Chat memory" on, the spec sets `memoryScope` to the chat id and the process gets the `MEMORY` capability, so context comes from the chat's memory (see below), not a resent transcript. Each turn gets a fresh sandbox, so earlier files are not available to later turns.
 - Advanced options: model, effort (unset means the model default), "Sub-agents at low effort" (sets `subagentEffort`), role, token budget, permissions, approval, chat memory.
-- Conversations live in the browser's `localStorage` (`kernelagent.chats`), not on the server.
+- Conversations live in the user's account when accounts are on, else in the browser's `localStorage` (`kernelagent.chats`).
 - `lib/steps.ts` turns a job's events into the step list shown in the thread. `lib/permissions.ts` is shared by the chat and the New Job modal.
 
 ## Models and user keys
@@ -124,13 +130,14 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 
 - `GET /models` lists what the provider offers (Anthropic Models API, cached 10 min, built-in fallback). A job spec's `model` applies to every process in the job, spawned children included. `Kernel.modelFor(jobId)` resolves it.
 - A user key arrives as the `x-provider-key` header. `Kernel.submitJob(spec, { apiKey })` keeps it in memory only (`jobKeys`) and drops it when the job settles. It must never reach the spec, the DB, or an event: events stream to every console. `tests/api.test.ts` checks this.
+- The API server never uses its own keys unless `ALLOW_SERVER_KEY=true` (`apiModelEnv` in `packages/llm/factory.ts`). Every job must bring the visitor's key.
 - A job that brought a key never falls back to the server key. A retry after the key is dropped fails and asks for a resubmit.
 - The console stores keys in localStorage (`kernelagent.providerKey.anthropic`, `.openai`) and the last picked model in `kernelagent.model`.
 
 ## Design system
 
 - Datadog-style: every page sits in `components/shell/AppShell.tsx` (dark nav rail, a top bar on phones) with a `PageHeader` title bar. Widgets are `card` (flat panel, hairline border, 4px radius).
-- Themes: light by default, dark via the rail toggle (`lib/theme.ts`, saved as `kernelagent.theme`). An inline script in `app/layout.tsx` applies it before paint.
+- Themes: dark by default (`data-theme="dark"` on `<html>` in `app/layout.tsx`), light via the rail toggle (`lib/theme.ts`, saved as `kernelagent.theme`). An inline script in `app/layout.tsx` applies it before paint.
 - All colors are CSS variables in `app/globals.css` (`:root` light, `[data-theme="dark"]` dark), exposed as Tailwind colors (`term-*`, `ink`, `sunk`, `accent`, `ok`, `warn`, `danger`). Use those or `dark:` variants, never raw hex or `white/`/`black/` tints. Chart series and status colors are validated per theme.
 
 ## Dashboard

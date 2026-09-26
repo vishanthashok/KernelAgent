@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ModelsResponse, Stats } from "@/lib/api";
 import type { ChatOptions, Effort } from "@/lib/chats";
 import { PERMISSIONS } from "@/lib/permissions";
-import type { ModelsState, ResolvedModel } from "@/lib/useModels";
+import { needsUserKey, type ModelsState, type ResolvedModel } from "@/lib/useModels";
 import { KEY_PROVIDERS, maskKey, PROVIDER_LABEL } from "@/lib/userKey";
 
 export function Composer({
@@ -41,7 +41,7 @@ export function Composer({
 
   const send = () => {
     const t = text.trim();
-    if (!t || running) return;
+    if (!t || running || needsKey) return;
     onSend(t);
     setText("");
   };
@@ -50,7 +50,7 @@ export function Composer({
   const list = models?.models ?? [];
   const hasKey = Object.keys(keyState?.keys ?? {}).length > 0;
   // Nothing runs until the user adds a key: the server has none and this browser has none that work.
-  const needsKey = !!models?.acceptsUserKeys && list.length === 0 && (!!models.requiresUserKey || hasKey);
+  const needsKey = needsUserKey(keyState);
   const stale = !!options.model && list.length > 0 && !list.some((m) => m.id === options.model);
 
   return (
@@ -187,7 +187,7 @@ export function Composer({
           ) : (
             <button
               onClick={send}
-              disabled={!text.trim()}
+              disabled={!text.trim() || needsKey}
               className="ml-auto flex h-9 w-9 items-center justify-center rounded-md bg-accent text-on-accent transition-opacity hover:bg-accent/85 disabled:opacity-30"
               title="Send"
             >
@@ -199,9 +199,9 @@ export function Composer({
       <p className="mt-2 text-center text-xs text-term-dim">
         {needsKey ? (
           <span className="text-warn">
-            {hasKey ? "Your keys did not list any models. " : "This server runs on your own API key. "}
-            <Link href="/connect" className="underline">
-              {hasKey ? "Check your keys" : "Add a Claude or OpenAI key"}
+            {hasKey ? "Your keys did not list any models. " : "Agents here run on your own API key. "}
+            <Link href="/connect" className="font-medium underline">
+              {hasKey ? "Check your keys" : "Add a Claude or OpenAI key to start"}
             </Link>
             .
           </span>

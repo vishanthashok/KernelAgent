@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 export type Theme = "light" | "dark";
 const KEY = "kernelagent.theme";
 
-/** The current theme and a setter that applies and remembers it. Light is the default. */
+/** The current theme and a setter that applies and remembers it. Dark is the default (see app/layout.tsx). */
 export function useTheme(): [Theme, (t: Theme) => void] {
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>("dark");
   useEffect(() => {
     setThemeState(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
   }, []);

@@ -17,6 +17,7 @@ const SURFACES = [
   { title: "Chat", body: "Ask for something. Watch each step the agent takes, the files it writes, and what it cost." },
   { title: "Process console", body: "A live table like top, a task graph, IPC messages, sandboxes, and traces you can rewind." },
   { title: "Metrics", body: "Tokens, cost, cache savings, and errors over time, split by model. Compare Claude and GPT on the same work." },
+  { title: "Your account", body: "Chats and agent memory are saved to your account, so your agents remember context on any device. Your API key stays in your browser." },
 ];
 
 const PROCS = [
@@ -26,8 +27,14 @@ const PROCS = [
   { pid: "p-4", role: "reviewer", state: "READY", tone: "text-term-dim", tokens: "0" },
 ];
 
-export function Landing({ user, authEnabled }: { user?: User | undefined; authEnabled: boolean }) {
-  const start = user || !authEnabled ? { href: "/connect", label: "Open the app" } : { href: "/login", label: "Sign in to try it" };
+export function Landing({ user, authEnabled, accounts }: { user?: User | undefined; authEnabled: boolean; accounts: boolean }) {
+  const start =
+    user || !authEnabled
+      ? { href: "/connect", label: "Open the app" }
+      : accounts
+        ? { href: "/signup", label: "Create a free account" }
+        : { href: "/login", label: "Sign in to try it" };
+  const showSignIn = !user && authEnabled && accounts;
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-40 border-b border-term-line bg-term-panel/90 backdrop-blur">
@@ -41,6 +48,11 @@ export function Landing({ user, authEnabled }: { user?: User | undefined; authEn
           </nav>
           <span className="ml-auto" />
           {user ? <UserMenu user={user} /> : null}
+          {showSignIn && (
+            <Link href="/login" className="pill pill-ghost text-sm">
+              Sign in
+            </Link>
+          )}
           <Link href={start.href} className="pill pill-light text-sm">
             {start.label}
           </Link>
@@ -132,7 +144,7 @@ export function Landing({ user, authEnabled }: { user?: User | undefined; authEn
         <section className="mx-auto max-w-6xl px-4 py-14 md:px-6">
           <div className="label-caps">What you get</div>
           <h2 className="mt-2 text-2xl font-semibold">See how your agents behave</h2>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {SURFACES.map((s) => (
               <div key={s.title} className="card p-5">
                 <div className="font-semibold">{s.title}</div>
@@ -198,7 +210,7 @@ export function Landing({ user, authEnabled }: { user?: User | undefined; authEn
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 py-10 md:px-6">
             <div>
               <div className="text-lg font-semibold">Try it with your own agents</div>
-              <div className="text-sm text-term-dim">Sign in, add a key, and give your agents a task.</div>
+              <div className="text-sm text-term-dim">{accounts ? "Create an account" : "Sign in"}, add a key, and give your agents a task.</div>
             </div>
             <Link href={start.href} className="pill pill-light ml-auto px-5 py-2.5 text-sm">
               {start.label} →

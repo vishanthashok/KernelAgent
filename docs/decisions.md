@@ -121,8 +121,19 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **The login gates the UI, not the API.** `proxy.ts` redirects signed-out visitors on `/chat`, `/console`, `/dashboard`, and `/connect` to `/login`. The API keeps its optional dev token. A visitor's API key, not the login, pays for model calls, so an ungated API call gains nothing without a key when `REQUIRE_USER_KEY=true`.
 - **No "connect your Claude.ai or ChatGPT account".** Neither provider offers OAuth that lets a third-party app run models on a consumer subscription. Visitors bring API keys, one per provider, stored in the browser (`kernelagent.providerKey.anthropic`, `.openai`).
 - **One ModelClient per provider, one RoutingClient over them.** `packages/llm/router.ts` picks the provider from the model id (`claude-*` vs `gpt-*`/`o*`) and reads a key's provider from its prefix (`sk-ant-` is Anthropic). The kernel still holds one `llm`. `providerFor(model)` labels `LLM_CALL` events, spans, and metrics with the real provider. The rate limiter stays keyed by the client, because the scheduler reserves slots before a model is known.
+- **The API never spends the owner's key by default.** `apiModelEnv()` in `packages/llm/factory.ts` forces `REQUIRE_USER_KEY=true` for the API server unless `ALLOW_SERVER_KEY=true`. A deploy that still has `ANTHROPIC_API_KEY` set cannot answer a visitor who skipped the key step. The CLI examples still use the server key. The chat blocks sending and links to `/connect` when no key works.
 - **A job runs on one provider.** Its key and its model must match. The router refuses a mismatch, and `POST /jobs` rejects a model the key's provider does not list.
 - **OpenAI through Chat Completions.** Function tools map one-to-one onto syscall tools. Tool results become `role: "tool"` messages. Provider-opaque blocks (Anthropic thinking) are dropped, which is safe because a job never switches provider. OpenAI caches prefixes itself and reports only cache reads.
+
+## Accounts
+
+- **Accounts live in the API's database.** The console on Vercel has no database, and the API already has SQLite on a volume. Tables `users` and `chats`. Turned on by `ACCOUNTS_SECRET`, which the API and the console share.
+- **The console vouches for users, the browser carries a signed token.** The console's server calls `/accounts/signup|login|oauth` with the secret in `x-accounts-secret`. For browser calls, `/api/token` signs a one-hour HMAC token (`packages/kernel/user-token.ts`) with the user id. The API checks it on `x-user-token`. No new dependency.
+- **With accounts on, jobs, memory, and chats need a user.** `POST /jobs` rewrites `memoryScope` to `u<userId>_<chatId>`, and the memory routes do the same, so a user only reaches their own memory. Deleting a memory entry by id requires `?scope=` and matches both.
+- **Provider sign-in links by email.** GitHub and Google verify the email, so their sign-in finds or creates the account with it. Email sign-up on an address that already has a provider account is refused, since only the provider can prove the address.
+- **Chats move into the account on first sign-in** from this browser's localStorage, then local storage is cleared. Saves are debounced and send only chats whose JSON changed.
+- **Known gap:** the event stream (`WS /events/stream`) and the `/console` monitor still show every job on the server. Jobs have no owner yet.
+- **CORS allows PUT and DELETE.** It allowed only GET, HEAD, and POST before, which also blocked the console's memory deletes across origins.
 
 ## Connectors (planned)
 
