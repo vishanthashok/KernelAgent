@@ -5,10 +5,10 @@ import { API_URL } from "@/lib/api";
 export function ApiBanner({ connected, error, className = "" }: { connected: boolean; error?: string | undefined; className?: string }) {
   if (connected || !error) return null;
   return (
-    <div className={`rounded-2xl border border-amber-300/30 bg-amber-300/[0.06] px-4 py-3 text-sm text-amber-100 ${className}`}>
-      <div className="font-medium text-amber-200">The console can&apos;t reach the API.</div>
-      <div className="mt-1 break-words text-amber-100/80">{error}</div>
-      <div className="mt-2 text-xs text-amber-100/70">
+    <div className={`rounded-md border border-warn/30 bg-warn/[0.06] px-4 py-3 text-sm text-warn ${className}`}>
+      <div className="font-medium text-warn">The console can&apos;t reach the API.</div>
+      <div className="mt-1 break-words text-warn/80">{error}</div>
+      <div className="mt-2 text-xs text-warn/70">
         Check{" "}
         <a href={`${API_URL}/health`} target="_blank" rel="noreferrer" className="underline">
           {API_URL}/health

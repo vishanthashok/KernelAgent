@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useKernel, useNow } from "@/lib/useKernel";
 import { resolveModel, useLastModel, useModels } from "@/lib/useModels";
 import { hhmmss } from "@/lib/format";
@@ -14,6 +13,7 @@ import { Inspector } from "./Inspector";
 import { NewJob } from "./NewJob";
 import { ApiBanner } from "./ApiBanner";
 import { OutputView } from "./OutputView";
+import { AppShell, PageHeader } from "./shell/AppShell";
 
 const TABS = ["Output", "Processes", "Task Graph", "IPC", "Sandboxes", "Traces"] as const;
 type Tab = (typeof TABS)[number];
@@ -29,9 +29,9 @@ const TAB_BLURB: Record<Tab, string> = {
 
 function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
   return (
-    <div className="card px-5 py-4">
-      <div className="label-caps">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight">{value}</div>
+    <div className="card px-3 py-2.5">
+      <div className="text-xs font-medium text-term-dim">{label}</div>
+      <div className="mt-1.5 text-[22px] leading-none font-semibold tabular-nums">{value}</div>
       {sub !== undefined && <div className="mt-1 text-xs text-term-dim">{sub}</div>}
     </div>
   );
@@ -81,102 +81,37 @@ export function Console() {
   const wide = tab === "Traces";
 
   return (
-    <div className="mx-auto max-w-[1520px] px-4 pb-16 md:px-8">
-      {/* Floating nav, like a pill over the page */}
-      <nav className="sticky top-4 z-10 mt-4 flex items-center gap-4 rounded-2xl bg-white/90 px-4 py-3 text-neutral-600 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur md:px-6">
-        <div className="hidden min-w-0 flex-1 items-center gap-6 lg:flex">
-          {TABS.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`font-mono text-[11px] uppercase tracking-[0.22em] transition-colors ${
-                tab === t ? "text-neutral-950" : "text-neutral-500 hover:text-neutral-900"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        <Link href="/" className="shrink-0 font-mono text-sm font-semibold tracking-[0.35em] text-neutral-950" title="Back to chat">
-          KERNELAGENT
-        </Link>
-        <div className="flex flex-1 items-center justify-end gap-4">
-          <span className="hidden items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] sm:flex">
-            <span className={`h-2 w-2 rounded-full ${k.connected ? "bg-emerald-500" : "bg-red-500"}`} />
-            {k.connected ? "live" : "offline"}
-          </span>
-          <Link href="/dashboard" className="font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-600 hover:text-neutral-950">
-            Dashboard
-          </Link>
-          <Link href="/" className="font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-600 hover:text-neutral-950">
-            Chat
-          </Link>
-          <button onClick={() => setNewJob(true)} className="pill pill-dark text-sm">
-            New Job
-          </button>
-        </div>
-      </nav>
+    <AppShell active="console" status={k.connected}>
+      <PageHeader crumb="Console" title="Processes and jobs">
+        <span className="hidden font-mono text-[11px] text-term-dim md:inline">
+          {s ? `${s.provider} / ${model?.name ?? s.model} · sandbox ${s.sandbox ?? "none"} · seq ${k.lastSequence}` : "…"}
+        </span>
+        <button onClick={() => setTab("Traces")} className="pill pill-ghost py-1 text-xs">
+          Replay a run
+        </button>
+        <button onClick={() => setNewJob(true)} className="pill pill-light py-1 text-xs">
+          New job
+        </button>
+      </PageHeader>
 
-      <ApiBanner connected={k.connected} error={k.apiError} className="mt-3" />
-
-      {/* Tabs for small screens */}
-      <div className="mt-3 flex gap-2 overflow-x-auto lg:hidden">
+      {/* Tabs, Datadog style: text with an accent underline. */}
+      <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-term-line bg-term-panel px-3 md:px-4">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`pill shrink-0 text-xs ${tab === t ? "pill-light" : "pill-ghost"}`}
+            className={`-mb-px shrink-0 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors ${
+              tab === t ? "border-accent text-term-fg" : "border-transparent text-term-dim hover:text-term-fg"
+            }`}
           >
             {t}
           </button>
         ))}
       </div>
 
-      {/* Hero */}
-      <header className="mt-14 mb-10 grid gap-8 md:mt-20 lg:grid-cols-[1.5fr_1fr] lg:items-end">
-        <div>
-          <div className="label-caps mb-4">Agent kernel · live console</div>
-          <h1 className="text-5xl font-semibold leading-[1.02] tracking-tight md:text-6xl">
-            Agents, scheduled
-            <br />
-            like processes.
-          </h1>
-          <p className="mt-5 max-w-xl text-lg leading-relaxed text-term-dim">
-            Every agent gets a process, a budget, capabilities, and its own sandbox. Every step lands in an append-only log you can
-            replay.
-          </p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            <button onClick={() => setNewJob(true)} className="pill pill-light">
-              Run a job
-            </button>
-            <button onClick={() => setTab("Traces")} className="pill pill-ghost">
-              Replay a run
-            </button>
-          </div>
-        </div>
-        <div className="card grid grid-cols-2 gap-x-6 gap-y-4 p-5 text-sm">
-          <div>
-            <div className="label-caps">Model</div>
-            <div className="mt-1 truncate font-medium" title={model?.id}>
-              {s ? `${s.provider} / ${model?.name ?? s.model}` : "…"}
-            </div>
-          </div>
-          <div>
-            <div className="label-caps">Sandbox</div>
-            <div className="mt-1 font-medium">{s?.sandbox ?? "…"}</div>
-          </div>
-          <div>
-            <div className="label-caps">Rate limit</div>
-            <div className="mt-1 font-medium">
-              {s ? `${Math.round(s.rateLimiter.requests * 100)}% req · ${Math.round(s.rateLimiter.tokens * 100)}% tok` : "…"}
-            </div>
-          </div>
-          <div>
-            <div className="label-caps">Event log</div>
-            <div className="mt-1 font-medium">seq {k.lastSequence}</div>
-          </div>
-        </div>
-      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-[1600px] space-y-3 p-3 md:p-4">
+      <ApiBanner connected={k.connected} error={k.apiError} />
 
       {/* Stats */}
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -189,19 +124,19 @@ export function Console() {
       </section>
 
       {/* Workspace */}
-      <section className={`mt-4 grid gap-4 ${wide ? "" : "lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)]"}`}>
+      <section className={`grid gap-3 ${wide ? "" : "lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)]"}`}>
         <div className="card flex min-h-[560px] min-w-0 flex-col">
-          <div className="flex flex-wrap items-end gap-4 border-b border-white/10 px-6 py-5">
+          <div className="flex flex-wrap items-center gap-4 border-b border-term-line px-4 py-2.5">
             <div className="min-w-0 flex-1">
-              <h2 className="text-xl font-semibold tracking-tight">{tab}</h2>
-              <p className="mt-1 text-sm text-term-dim">{TAB_BLURB[tab]}</p>
+              <h2 className="text-[13px] font-semibold">{tab}</h2>
+              <p className="mt-0.5 text-xs text-term-dim">{TAB_BLURB[tab]}</p>
             </div>
             <label className="flex items-center gap-3">
               <span className="label-caps">Job</span>
               <select
                 value={jobId}
                 onChange={(e) => setJobId(e.target.value)}
-                className="max-w-[18rem] border border-white/15 bg-black/30 px-3 py-1.5 text-sm"
+                className="max-w-[18rem] border border-ink/15 bg-sunk/30 px-3 py-1.5 text-sm"
               >
                 <option value="all">All jobs</option>
                 {[...k.jobs].reverse().map((j) => (
@@ -241,7 +176,7 @@ export function Console() {
         </aside>
       </section>
 
-      <footer className="mt-10 flex flex-wrap justify-between gap-2 text-xs text-term-dim">
+      <footer className="flex flex-wrap justify-between gap-2 pt-2 text-xs text-term-dim">
         <span>KernelAgent · cooperative scheduler, capability-guarded syscalls, append-only event log</span>
         <span>CPU* is runtime utilization, not real CPU</span>
       </footer>
@@ -262,6 +197,8 @@ export function Console() {
       {inspect && k.processes.get(inspect) && (
         <Inspector process={k.processes.get(inspect)!} events={k.events} now={now} onClose={() => setInspect(undefined)} onSelect={setInspect} />
       )}
-    </div>
+      </div>
+      </div>
+    </AppShell>
   );
 }

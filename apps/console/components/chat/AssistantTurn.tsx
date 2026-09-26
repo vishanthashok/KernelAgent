@@ -46,7 +46,7 @@ export function AssistantTurn({
 
   if (turn.error) {
     return (
-      <div className="rounded-2xl border border-red-400/30 bg-red-400/5 px-4 py-3 text-sm text-red-200">
+      <div className="rounded-md border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
         Could not start this job: {turn.error}
         <button onClick={onRetry} className="pill pill-ghost ml-3 px-3 py-0.5 text-xs">
           Retry
@@ -80,9 +80,9 @@ export function AssistantTurn({
       <Steps steps={steps} running={running} multiAgent={procs.length > 1} />
 
       {approvals.map((p) => (
-        <div key={p.pid} className="mb-3 rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4">
-          <div className="text-sm text-amber-200">The agent wants to run a command:</div>
-          <pre className="mt-2 overflow-x-auto rounded-lg bg-black/40 p-3 font-mono text-[12.5px] whitespace-pre-wrap">{pendingApproval(k.events, p.pid) ?? "…"}</pre>
+        <div key={p.pid} className="mb-3 rounded-md border border-warn/30 bg-warn/5 p-4">
+          <div className="text-sm text-warn">The agent wants to run a command:</div>
+          <pre className="mt-2 overflow-x-auto rounded-lg bg-sunk/40 p-3 font-mono text-[12.5px] whitespace-pre-wrap">{pendingApproval(k.events, p.pid) ?? "…"}</pre>
           <div className="mt-3 flex gap-2">
             <button onClick={() => void api.signal(p.pid, "approve")} className="pill pill-light px-4 py-1 text-sm">
               Approve
@@ -97,7 +97,7 @@ export function AssistantTurn({
       {answer ? (
         <Markdown text={answer} />
       ) : root?.status === "FAILED" ? (
-        <div className="text-sm text-red-300">
+        <div className="text-sm text-danger">
           The agent failed: {root.error ?? "unknown error"}
           <button onClick={onRetry} className="pill pill-ghost ml-3 px-3 py-0.5 text-xs">
             Retry
@@ -114,9 +114,9 @@ export function AssistantTurn({
               key={f.id}
               href={artifactUrl(f.id)}
               download
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:border-white/30"
+              className="flex items-center gap-3 rounded-md border border-ink/10 bg-ink/[0.03] p-3 transition-colors hover:border-ink/30"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 font-mono text-[10px] uppercase">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-ink/10 font-mono text-[10px] uppercase">
                 {f.path.split(".").pop()?.slice(0, 4) ?? "file"}
               </span>
               <span className="min-w-0 flex-1">
@@ -137,7 +137,7 @@ export function AssistantTurn({
           {showSubs && (
             <div className="mt-2 space-y-2">
               {subs.map((s) => (
-                <div key={s.pid} className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                <div key={s.pid} className="rounded-md border border-ink/10 bg-ink/[0.02] px-4 py-3">
                   <div className="mb-1 text-xs text-term-dim">
                     <span className="font-mono text-term-accent">{s.pid}</span> {s.role} · {s.status.toLowerCase()}
                   </div>
@@ -159,12 +159,12 @@ export function AssistantTurn({
                   setTimeout(() => setCopied(false), 1200);
                 })
               }
-              className="rounded-md px-1.5 py-0.5 hover:bg-white/10 hover:text-term-fg"
+              className="rounded-md px-1.5 py-0.5 hover:bg-ink/10 hover:text-term-fg"
             >
               {copied ? "copied" : "copy"}
             </button>
           )}
-          <button onClick={onRetry} className="rounded-md px-1.5 py-0.5 hover:bg-white/10 hover:text-term-fg">
+          <button onClick={onRetry} className="rounded-md px-1.5 py-0.5 hover:bg-ink/10 hover:text-term-fg">
             retry
           </button>
           {turn.model && <span title={turn.model}>{modelName(turn.model, models)}</span>}

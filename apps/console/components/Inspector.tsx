@@ -14,8 +14,8 @@ function Meter({ label, value, max, text }: { label: string; value: number; max:
         <span>{label}</span>
         <span>{text}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-        <div className={`h-full ${pct > 90 ? "bg-red-400" : pct > 70 ? "bg-amber-300" : "bg-white"}`} style={{ width: `${pct}%` }} />
+      <div className="h-1.5 overflow-hidden rounded-full bg-ink/10">
+        <div className={`h-full ${pct > 90 ? "bg-[var(--status-critical)]" : pct > 70 ? "bg-[var(--status-warning)]" : "bg-accent"}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -54,8 +54,8 @@ export function Inspector({
   );
 
   return (
-    <div className="fixed inset-0 z-20 flex justify-end bg-black/60 p-2 backdrop-blur-sm md:p-4" onClick={onClose}>
-      <div className="card flex h-full w-full max-w-2xl flex-col overflow-auto p-6" style={{ background: "#0f1318" }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-20 flex justify-end bg-sunk/60 p-2 backdrop-blur-sm md:p-4" onClick={onClose}>
+      <div className="card flex h-full w-full max-w-2xl flex-col overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-5 flex items-center gap-3">
           <span className="label-caps">PID {p.pid}</span>
           <span className="text-xl font-semibold tracking-tight">{p.role}</span>
@@ -66,7 +66,7 @@ export function Inspector({
         </div>
 
         <div className="mb-6 flex flex-wrap items-center gap-2">
-          <button disabled={!live} onClick={() => act("kill", () => api.kill(p.pid))} className="pill border border-red-400/50 px-3 py-1 text-xs text-red-300 hover:bg-red-400/10 disabled:opacity-30">
+          <button disabled={!live} onClick={() => act("kill", () => api.kill(p.pid))} className="pill border border-danger/50 px-3 py-1 text-xs text-danger hover:bg-danger/10 disabled:opacity-30">
             kill
           </button>
           <button disabled={p.status !== "FAILED"} onClick={() => act("retry", () => api.signal(p.pid, "retry"))} className="pill pill-ghost px-3 py-1 text-xs disabled:opacity-30">
@@ -80,7 +80,7 @@ export function Inspector({
               <button onClick={() => act("approve", () => api.signal(p.pid, "approve"))} className="pill pill-light px-3 py-1 text-xs">
                 approve
               </button>
-              <button onClick={() => act("deny", () => api.signal(p.pid, "deny"))} className="pill border border-amber-300/50 px-3 py-1 text-xs text-amber-200 hover:bg-amber-300/10">
+              <button onClick={() => act("deny", () => api.signal(p.pid, "deny"))} className="pill border border-warn/50 px-3 py-1 text-xs text-warn hover:bg-warn/10">
                 deny
               </button>
             </>
@@ -108,7 +108,7 @@ export function Inspector({
               v={
                 p.capabilities.length
                   ? p.capabilities.map((c, i) => (
-                      <span key={i} className="mr-1.5 mb-1 inline-block rounded-full bg-white/[0.06] px-2.5 py-0.5 font-mono text-[11px]">
+                      <span key={i} className="mr-1.5 mb-1 inline-block rounded-full bg-ink/[0.06] px-2.5 py-0.5 font-mono text-[11px]">
                         {c.type}
                         {c.scope ? `(${c.scope})` : ""}
                         {c.requiresApproval ? " ⚑approval" : ""}
@@ -117,13 +117,13 @@ export function Inspector({
                   : "none"
               }
             />
-            {p.result !== undefined && <Row k="result" v={<span className="whitespace-pre-wrap text-emerald-300">{p.result}</span>} />}
-            {p.error && <Row k="error" v={<span className="text-red-300">{p.error}</span>} />}
+            {p.result !== undefined && <Row k="result" v={<span className="whitespace-pre-wrap text-ok">{p.result}</span>} />}
+            {p.error && <Row k="error" v={<span className="text-danger">{p.error}</span>} />}
           </tbody>
         </table>
 
         <div className="label-caps mb-2">Event log · {mine.length}</div>
-        <div className="min-h-[200px] flex-1 overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-[12px] leading-relaxed whitespace-pre">
+        <div className="min-h-[200px] flex-1 overflow-auto rounded-md border border-ink/10 bg-sunk/30 p-3 font-mono text-[12px] leading-relaxed whitespace-pre">
           {mine.map((e) => (
             <div key={e.sequence}>
               <span className="text-term-dim">

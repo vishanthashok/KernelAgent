@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { STATE_FILL } from "@/lib/format";
+import { AppShell, PageHeader } from "../shell/AppShell";
+import { STATE_DOT } from "@/lib/format";
 import { fmtCount, fmtMs, fmtPct, fmtUsd, RANGES, useMetrics, type Bucket, type Metrics, type Range, type Totals } from "@/lib/metrics";
 import { ChartCard, timeLabel, type Series } from "./TimeChart";
 
 // A syscall type keeps its slot whatever else is on screen. Slots follow the validated order.
 const SYSCALL_SLOT: Record<string, number> = { EXEC: 1, FS_WRITE: 2, FS_READ: 3, EXIT: 4, SPAWN: 5, SEND: 6, RECEIVE: 7, SLEEP: 8 };
-const OTHER_COLOR = "rgba(255,255,255,0.35)";
+const OTHER_COLOR = "var(--chart-axis)";
 
 /** Colors for the shown syscall types: fixed slots first, then the lowest free slot for the rest. */
 function syscallColors(types: string[]): Record<string, string> {
@@ -30,7 +31,7 @@ const STATES = ["RUNNING", "READY", "WAITING", "NEW", "TERMINATED", "FAILED"] as
 
 function delta(cur: number, prev: number): { text: string; dir: "up" | "down" | "flat" } {
   if (prev === 0 && cur === 0) return { text: "no change", dir: "flat" };
-  if (prev === 0) return { text: "new in this range", dir: "up" };
+  if (prev === 0) return { text: "new", dir: "up" };
   const pct = ((cur - prev) / prev) * 100;
   if (Math.abs(pct) < 0.5) return { text: "flat", dir: "flat" };
   return { text: `${Math.abs(pct) >= 100 ? Math.round(pct) : pct.toFixed(1)}%`, dir: pct > 0 ? "up" : "down" };
@@ -68,9 +69,9 @@ function StatTile({
   const arrow = d.dir === "up" ? "▲" : d.dir === "down" ? "▼" : "–";
   const good = d.dir === "flat" ? undefined : (d.dir === "up") === goodWhenUp;
   return (
-    <div className="card flex min-w-0 flex-col px-4 pt-3.5 pb-2">
-      <div className="label-caps truncate">{label}</div>
-      <div className="mt-1.5 truncate text-2xl font-semibold tracking-tight">{value}</div>
+    <div className="card flex min-w-0 flex-col px-3 pt-2.5 pb-1.5">
+      <div className="truncate text-xs font-medium text-term-dim">{label}</div>
+      <div className="mt-2 truncate text-[26px] leading-none font-semibold tabular-nums">{value}</div>
       <div className="mt-0.5 truncate text-[11px] text-term-dim" title="Compared with the previous window of the same length">
         <span className="text-term-fg/80">
           {arrow} {d.text}
@@ -87,20 +88,20 @@ function StatTile({
 function StateBar({ now }: { now: Metrics["now"] }) {
   const total = STATES.reduce((n, s) => n + (now.states[s] ?? 0), 0);
   return (
-    <section className="card p-5">
+    <section className="card px-4 py-3">
       <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h3 className="text-[15px] font-semibold tracking-tight">Processes right now</h3>
+        <h3 className="text-[13px] font-semibold">Processes right now</h3>
         <span className="font-mono text-xs text-term-dim tabular-nums">
           {now.running}/{now.maxConcurrency} slots · queue {now.queueDepth} · {total} total
         </span>
       </div>
       {total === 0 ? (
-        <div className="h-3 rounded-full bg-white/5" />
+        <div className="h-3 rounded-sm bg-ink/5" />
       ) : (
-        <div className="flex h-3 gap-[2px] overflow-hidden rounded-full">
+        <div className="flex h-3 gap-[2px] overflow-hidden rounded-sm">
           {STATES.map((s) =>
             now.states[s] ? (
-              <div key={s} title={`${s.toLowerCase()}: ${now.states[s]}`} style={{ flexGrow: now.states[s], background: STATE_FILL[s] }} />
+              <div key={s} title={`${s.toLowerCase()}: ${now.states[s]}`} style={{ flexGrow: now.states[s], background: STATE_DOT[s] }} />
             ) : null,
           )}
         </div>
@@ -108,7 +109,7 @@ function StateBar({ now }: { now: Metrics["now"] }) {
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs">
         {STATES.map((s) => (
           <span key={s} className="flex items-center gap-1.5 text-term-dim">
-            <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: STATE_FILL[s] }} />
+            <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: STATE_DOT[s] }} />
             {s.toLowerCase()}
             <span className="font-mono text-term-fg tabular-nums">{now.states[s] ?? 0}</span>
           </span>
@@ -119,17 +120,17 @@ function StateBar({ now }: { now: Metrics["now"] }) {
 }
 
 function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
-  return <th className={`px-3 py-2 font-normal ${right ? "text-right" : "text-left"}`}>{children}</th>;
+  return <th className={`bg-term-panel-2 px-3 py-1.5 text-[11px] font-semibold ${right ? "text-right" : "text-left"}`}>{children}</th>;
 }
 
 function TableCard({ title, subtitle, children, empty }: { title: string; subtitle?: string; children: React.ReactNode; empty: boolean }) {
   return (
     <section className="card flex min-w-0 flex-col">
-      <div className="px-5 pt-5 pb-3">
-        <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
+      <div className="border-b border-term-line px-4 py-2.5">
+        <h3 className="text-[13px] font-semibold">{title}</h3>
         {subtitle && <p className="mt-0.5 text-xs text-term-dim">{subtitle}</p>}
       </div>
-      {empty ? <div className="px-5 pb-6 text-xs text-term-dim">Nothing in this range.</div> : <div className="overflow-x-auto pb-2">{children}</div>}
+      {empty ? <div className="px-4 py-6 text-xs text-term-dim">Nothing in this range.</div> : <div className="overflow-x-auto">{children}</div>}
     </section>
   );
 }
@@ -168,56 +169,44 @@ export function Dashboard() {
   }));
 
   return (
-    <div className="mx-auto max-w-[1520px] px-4 pb-16 md:px-8">
-      <nav className="sticky top-4 z-20 mt-4 flex items-center gap-4 rounded-2xl bg-white/90 px-4 py-3 text-neutral-600 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur md:px-6">
-        <div className="flex min-w-0 flex-1 items-center gap-5">
-          <Link href="/" className="font-mono text-[11px] tracking-[0.22em] text-neutral-500 uppercase hover:text-neutral-900">
-            Chat
-          </Link>
-          <Link href="/console" className="font-mono text-[11px] tracking-[0.22em] text-neutral-500 uppercase hover:text-neutral-900">
-            Console
-          </Link>
-          <span className="font-mono text-[11px] tracking-[0.22em] text-neutral-950 uppercase">Dashboard</span>
-        </div>
-        <span className="hidden shrink-0 font-mono text-sm font-semibold tracking-[0.35em] text-neutral-950 sm:block">KERNELAGENT</span>
-        <div className="flex flex-1 items-center justify-end gap-2 font-mono text-[11px] tracking-[0.2em] uppercase">
-          <span className={`h-2 w-2 rounded-full ${error ? "bg-red-500" : "bg-emerald-500"}`} />
-          <span className="hidden sm:inline">{error ? "offline" : live ? "live" : "paused"}</span>
-        </div>
-      </nav>
-
-      <header className="mt-12 mb-6 md:mt-16">
-        <div className="label-caps mb-3">Agent kernel · metrics</div>
-        <h1 className="text-4xl font-semibold leading-[1.05] tracking-tight md:text-5xl">Dashboard</h1>
-        <p className="mt-3 max-w-2xl text-term-dim">Spend, tokens, latency, and failures across every agent, from the kernel&apos;s event log.</p>
-      </header>
-
-      {/* Filters: one row, above everything they scope. */}
-      <div className="sticky top-[76px] z-10 -mx-1 mb-4 flex flex-wrap items-center gap-2 rounded-2xl bg-[#0b0e12]/80 px-1 py-2 backdrop-blur">
-        <div className="flex rounded-full border border-white/15 p-0.5">
+    <AppShell active="dashboard" status={m ? !error : undefined}>
+      <PageHeader crumb="Dashboards" title="KernelAgent overview">
+        {/* Time controls: one row, scoping every widget below. */}
+        <span className="hidden font-mono text-[11px] text-term-dim lg:inline">
+          {error ? <span className="text-danger">{error}</span> : updatedAt ? `Updated ${new Date(updatedAt).toLocaleTimeString([], { hour12: false })}` : "Loading…"}
+        </span>
+        <button onClick={() => setLive(!live)} className="pill pill-ghost py-1 text-xs" title={live ? "Pause auto-refresh" : "Resume auto-refresh"}>
+          <span className={`h-2 w-2 rounded-full ${live ? "bg-[var(--status-good)]" : "bg-term-dim"}`} />
+          {live ? "Live" : "Paused"}
+        </button>
+        <div className="flex overflow-hidden rounded border border-term-line bg-term-panel" role="group" aria-label="Time range">
           {RANGES.map((r) => (
             <button
               key={r}
               onClick={() => pick(r)}
-              className={`rounded-full px-3.5 py-1 font-mono text-xs transition-colors ${range === r ? "bg-white text-black" : "text-term-dim hover:bg-white/10 hover:text-term-fg"}`}
+              aria-pressed={range === r}
+              className={`border-r border-term-line px-3 py-1 text-xs font-medium last:border-r-0 transition-colors ${
+                range === r ? "bg-accent text-on-accent" : "text-term-fg hover:bg-term-panel-2"
+              }`}
             >
               {r}
             </button>
           ))}
         </div>
-        <button onClick={() => setLive(!live)} className={`pill px-3.5 py-1 text-xs ${live ? "pill-light" : "pill-ghost"}`}>
-          {live ? "● Live" : "Paused"}
-        </button>
-        <span className="ml-auto font-mono text-[11px] text-term-dim">
-          {error ? <span className="text-red-300">{error}</span> : updatedAt ? `updated ${new Date(updatedAt).toLocaleTimeString([], { hour12: false })}` : "loading…"}
-          {m && ` · ${timeLabel(m.from, m.to - m.from)} → ${timeLabel(m.to, m.to - m.from)} · ${fmtMs(m.bucketMs)} buckets`}
-        </span>
-      </div>
+      </PageHeader>
 
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-[1600px] space-y-4 p-3 md:p-4">
+          {m && (
+            <div className="font-mono text-[11px] text-term-dim">
+              {timeLabel(m.from, m.to - m.from)} → {timeLabel(m.to, m.to - m.from)} · {fmtMs(m.bucketMs)} rollup
+            </div>
+          )}
       {!m ? (
         <div className="card p-10 text-center text-term-dim">{error ? "Can't load metrics." : "Loading metrics…"}</div>
       ) : (
-        <div className={`space-y-4 transition-opacity ${dim ? "opacity-80" : ""}`}>
+        <div className={`space-y-3 transition-opacity ${dim ? "opacity-80" : ""}`}>
+          <h2 className="label-caps px-0.5 pt-1">Overview</h2>
           <section className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
             <StatTile label="Cost" value={fmtUsd(T!.costUsd)} cur={T!.costUsd} prev={P!.costUsd} spark={col(b, (x) => x.costUsd)} goodWhenUp={false} />
             <StatTile
@@ -252,7 +241,8 @@ export function Dashboard() {
 
           <StateBar now={m.now} />
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <h2 className="label-caps px-0.5 pt-1">Model calls and execution</h2>
+          <div className="grid gap-3 lg:grid-cols-2">
             <ChartCard
               title="Tokens"
               subtitle="Input read from the prompt cache costs a tenth of uncached input."
@@ -329,7 +319,8 @@ export function Dashboard() {
             />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
+          <h2 className="label-caps px-0.5 pt-1">Breakdown</h2>
+          <div className="grid gap-3 xl:grid-cols-2">
             <TableCard title="By model" subtitle="Spend and cache use per model in this range." empty={m.byModel.length === 0}>
               <table className="w-full text-xs tabular-nums">
                 <thead className="text-term-dim">
@@ -344,7 +335,7 @@ export function Dashboard() {
                 </thead>
                 <tbody className="font-mono">
                   {m.byModel.map((r) => (
-                    <tr key={r.model} className="border-t border-white/5">
+                    <tr key={r.model} className="border-t border-ink/5">
                       <td className="px-3 py-2 text-term-fg">{r.model}</td>
                       <td className="px-3 py-2 text-right">{fmtCount(r.calls)}</td>
                       <td className="px-3 py-2 text-right">{fmtCount(r.tokens)}</td>
@@ -371,9 +362,9 @@ export function Dashboard() {
                 </thead>
                 <tbody>
                   {m.topJobs.map((j) => (
-                    <tr key={j.jobId} className="border-t border-white/5">
+                    <tr key={j.jobId} className="border-t border-ink/5">
                       <td className="max-w-[260px] px-3 py-2">
-                        <Link href={`/console?job=${encodeURIComponent(j.jobId)}`} className="block truncate hover:underline">
+                        <Link href={`/console?job=${encodeURIComponent(j.jobId)}`} className="block truncate font-medium text-term-accent hover:underline">
                           {j.name || j.jobId}
                         </Link>
                         <span className="font-mono text-[10px] text-term-dim">{j.jobId}</span>
@@ -410,7 +401,7 @@ export function Dashboard() {
               </thead>
               <tbody>
                 {m.recentErrors.map((e, i) => (
-                  <tr key={`${e.ts}-${i}`} className="border-t border-white/5 align-top">
+                  <tr key={`${e.ts}-${i}`} className="border-t border-ink/5 align-top">
                     <td className="px-3 py-2 font-mono whitespace-nowrap text-term-dim tabular-nums">{new Date(e.ts).toLocaleTimeString([], { hour12: false })}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <span className="flex items-center gap-1.5">
@@ -435,6 +426,8 @@ export function Dashboard() {
           </TableCard>
         </div>
       )}
-    </div>
+        </div>
+      </div>
+    </AppShell>
   );
 }

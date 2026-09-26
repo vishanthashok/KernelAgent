@@ -172,11 +172,11 @@ export function TimeChart({
 
           {hover !== undefined && (
             <g pointerEvents="none">
-              <line x1={xCenter(hover) + 0.5} x2={xCenter(hover) + 0.5} y1={PAD.top} y2={PAD.top + plotH} stroke="rgba(255,255,255,0.35)" />
+              <line x1={xCenter(hover) + 0.5} x2={xCenter(hover) + 0.5} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--chart-axis)" />
               {kind === "lines" &&
                 series.map((s) =>
                   Number.isFinite(s.values[hover]) ? (
-                    <circle key={s.key} cx={xCenter(hover)} cy={y(s.values[hover]!)} r={4} fill={s.color} stroke="#121519" strokeWidth={2} />
+                    <circle key={s.key} cx={xCenter(hover)} cy={y(s.values[hover]!)} r={4} fill={s.color} stroke="var(--panel)" strokeWidth={2} />
                   ) : null,
                 )}
             </g>
@@ -186,7 +186,7 @@ export function TimeChart({
 
       {hover !== undefined && (
         <div
-          className="pointer-events-none absolute top-1 z-10 min-w-[150px] rounded-lg border border-white/15 bg-[#0d1116]/95 px-3 py-2 shadow-xl"
+          className="pointer-events-none absolute top-1 z-10 min-w-[150px] rounded border border-term-line bg-tooltip px-3 py-2 shadow-lg"
           style={xCenter(hover) > width / 2 ? { right: width - xCenter(hover) + 12 } : { left: xCenter(hover) + 12 }}
         >
           <div className="mb-1 font-mono text-[10px] text-term-dim">
@@ -245,13 +245,13 @@ export function ChartCard({
   const rows = times.map((t, i) => ({ t, vals: series.map((s) => s.values[i] ?? 0) })).filter((r) => r.vals.some((v) => v > 0));
   const cell = (v: number) => (Number.isFinite(v) ? format(v) : "–");
   return (
-    <section className={`card flex min-w-0 flex-col p-5 transition-opacity ${dim ? "opacity-60" : ""}`}>
-      <div className="mb-3 flex items-start gap-3">
+    <section className={`card flex min-w-0 flex-col px-4 pt-3 pb-3 transition-opacity ${dim ? "opacity-60" : ""}`}>
+      <div className="mb-2 flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
+          <h3 className="text-[13px] font-semibold">{title}</h3>
           {subtitle && <p className="mt-0.5 text-xs text-term-dim">{subtitle}</p>}
         </div>
-        <button onClick={() => setTable(!table)} className={`pill px-3 py-0.5 text-[11px] ${table ? "pill-light" : "pill-ghost"}`}>
+        <button onClick={() => setTable(!table)} className={`pill px-2 py-0.5 text-[11px] ${table ? "pill-light" : "pill-ghost"}`}>
           {table ? "Chart" : "Table"}
         </button>
       </div>
@@ -266,7 +266,7 @@ export function ChartCard({
             <div className="py-8 text-center text-xs text-term-dim">No data in this range.</div>
           ) : (
             <table className="w-full text-xs tabular-nums">
-              <thead className="sticky top-0 bg-[#121519] text-left text-term-dim">
+              <thead className="sticky top-0 bg-term-panel text-left text-term-dim">
                 <tr>
                   <th className="py-1 pr-3 font-normal">Time</th>
                   {series.map((s) => (
@@ -278,7 +278,7 @@ export function ChartCard({
               </thead>
               <tbody className="font-mono">
                 {rows.map((r) => (
-                  <tr key={r.t} className="border-t border-white/5">
+                  <tr key={r.t} className="border-t border-ink/5">
                     <td className="py-1 pr-3 text-term-dim">{timeLabel(r.t, span, bucketMs < 60_000)}</td>
                     {r.vals.map((v, j) => (
                       <td key={j} className="py-1 pr-3 text-right">

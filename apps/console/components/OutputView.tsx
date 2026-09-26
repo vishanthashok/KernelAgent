@@ -77,8 +77,8 @@ export function OutputView({
           <div className="mt-1 truncate text-lg font-semibold tracking-tight">{job?.name ?? jobId}</div>
         </div>
         <span
-          className={`rounded-full px-3 py-1 font-mono text-xs ${
-            !finished ? "bg-emerald-400/10 text-emerald-300" : failed ? "bg-red-400/10 text-red-300" : "bg-white/10 text-term-fg"
+          className={`rounded px-3 py-1 font-mono text-xs ${
+            !finished ? "bg-emerald-400/10 text-ok" : failed ? "bg-danger/10 text-danger" : "bg-ink/10 text-term-fg"
           }`}
         >
           {!finished ? "working…" : failed ? "finished with errors" : "complete"}
@@ -86,7 +86,7 @@ export function OutputView({
       </div>
 
       {!finished && latest && (
-        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
+        <div className="flex items-center gap-3 rounded-md border border-ink/10 bg-sunk/20 px-4 py-3 text-sm">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
           <span className="font-mono text-term-accent">{latest.pid}</span>
           <span className="min-w-0 truncate font-mono text-term-dim">{describe(latest)}</span>
@@ -102,9 +102,9 @@ export function OutputView({
                 key={f.id}
                 href={artifactUrl(f.id)}
                 download
-                className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-white/30"
+                className="group flex items-center gap-3 rounded-md border border-ink/10 bg-ink/[0.03] p-4 transition-colors hover:border-ink/30"
               >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 font-mono text-[10px] uppercase">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-ink/10 font-mono text-[10px] uppercase">
                   {f.path.split(".").pop()?.slice(0, 4) ?? "file"}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -124,8 +124,8 @@ export function OutputView({
         <div className="label-caps mb-3">Answers</div>
         <div className="space-y-3">
           {procs.map((p) => (
-            <div key={p.pid} className="rounded-2xl border border-white/10 bg-white/[0.02]">
-              <div className="flex flex-wrap items-center gap-3 border-b border-white/[0.06] px-5 py-3">
+            <div key={p.pid} className="rounded-md border border-ink/10 bg-ink/[0.02]">
+              <div className="flex flex-wrap items-center gap-3 border-b border-ink/[0.06] px-5 py-3">
                 <button onClick={() => onSelect(p.pid)} className="font-mono text-sm text-term-accent hover:underline">
                   {p.pid}
                 </button>
@@ -137,11 +137,11 @@ export function OutputView({
                 {p.result ? (
                   <div className="max-h-[480px] overflow-auto whitespace-pre-wrap text-[15px] leading-relaxed">{p.result}</div>
                 ) : p.status === "FAILED" ? (
-                  <p className="text-sm text-red-300">{p.error ?? "Failed without an answer."}</p>
+                  <p className="text-sm text-danger">{p.error ?? "Failed without an answer."}</p>
                 ) : p.error === "KILLED" ? (
                   <p className="text-sm text-term-dim">Killed before it answered.</p>
                 ) : p.waitingOn === "APPROVAL" ? (
-                  <p className="text-sm text-amber-200">
+                  <p className="text-sm text-warn">
                     Waiting for your approval to run a command.{" "}
                     <button onClick={() => onSelect(p.pid)} className="underline">
                       Review it

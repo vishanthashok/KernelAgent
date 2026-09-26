@@ -53,7 +53,7 @@ export function Composer({
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-4">
       {advanced && (
-        <div className="card mb-2 p-5" style={{ background: "#11161d" }}>
+        <div className="card mb-2 p-5">
           <div className="mb-4 flex items-center">
             <div className="label-caps">Advanced</div>
             <span className="ml-auto font-mono text-[11px] text-term-dim">
@@ -63,7 +63,7 @@ export function Composer({
           <div className="mb-4 flex flex-wrap gap-5">
             <label className="flex items-center gap-3">
               <span className="label-caps">Model</span>
-              <ModelSelect options={options} onOptions={onOptions} models={models} className="border border-white/15 bg-black/30 px-3 py-1.5 text-sm" />
+              <ModelSelect options={options} onOptions={onOptions} models={models} className="border border-ink/15 bg-sunk/30 px-3 py-1.5 text-sm" />
             </label>
             <label className="flex items-center gap-3" title="Lower effort thinks less and uses fewer tokens. Default is the model's own setting.">
               <span className="label-caps">Effort</span>
@@ -73,7 +73,7 @@ export function Composer({
                   const { effort: _drop, ...rest } = options;
                   onOptions(e.target.value ? { ...rest, effort: e.target.value as Effort } : rest);
                 }}
-                className="border border-white/15 bg-black/30 px-3 py-1.5 text-sm"
+                className="border border-ink/15 bg-sunk/30 px-3 py-1.5 text-sm"
               >
                 <option value="">Default</option>
                 <option value="low">Low · cheapest</option>
@@ -86,7 +86,7 @@ export function Composer({
               <input
                 value={options.role}
                 onChange={(e) => onOptions({ ...options, role: e.target.value })}
-                className="w-36 border border-white/15 bg-black/30 px-3 py-1.5 text-sm"
+                className="w-36 border border-ink/15 bg-sunk/30 px-3 py-1.5 text-sm"
               />
             </label>
             <label className="flex items-center gap-3">
@@ -97,7 +97,7 @@ export function Composer({
                 step={1000}
                 value={options.tokenBudget}
                 onChange={(e) => onOptions({ ...options, tokenBudget: Math.max(1000, Number(e.target.value) || 1000) })}
-                className="w-32 border border-white/15 bg-black/30 px-3 py-1.5 font-mono text-sm"
+                className="w-32 border border-ink/15 bg-sunk/30 px-3 py-1.5 font-mono text-sm"
               />
             </label>
           </div>
@@ -105,7 +105,7 @@ export function Composer({
           <div className="label-caps mb-2">Permissions</div>
           <div className="flex flex-wrap gap-2">
             {PERMISSIONS.map((p) => (
-              <label key={p.key} className="flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm hover:border-white/25">
+              <label key={p.key} className="flex cursor-pointer items-center gap-2 rounded border border-ink/10 bg-ink/[0.03] px-3 py-1.5 text-sm hover:border-ink/25">
                 <input
                   type="checkbox"
                   checked={options.perms[p.key]}
@@ -116,7 +116,7 @@ export function Composer({
             ))}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <label className="flex cursor-pointer items-center gap-2 rounded-full border border-amber-300/30 px-3 py-1.5 text-sm text-amber-200">
+            <label className="flex cursor-pointer items-center gap-2 rounded border border-warn/30 px-3 py-1.5 text-sm text-warn">
               <input
                 type="checkbox"
                 checked={options.approval}
@@ -126,14 +126,14 @@ export function Composer({
               Ask me before running commands
             </label>
             <label
-              className="flex cursor-pointer items-center gap-2 rounded-full border border-white/10 px-3 py-1.5 text-sm"
+              className="flex cursor-pointer items-center gap-2 rounded border border-ink/10 px-3 py-1.5 text-sm"
               title="Agents share a memory for this chat. Each answer is saved to it, so follow-ups keep context without resending the whole conversation."
             >
               <input type="checkbox" checked={options.memory} onChange={(e) => onOptions({ ...options, memory: e.target.checked })} />
               Chat memory
             </label>
             <label
-              className="flex cursor-pointer items-center gap-2 rounded-full border border-emerald-300/30 px-3 py-1.5 text-sm text-emerald-200"
+              className="flex cursor-pointer items-center gap-2 rounded border border-ok/30 px-3 py-1.5 text-sm text-ok"
               title="Sub-agents do narrow tasks. Running them at low effort cuts their token use."
             >
               <input type="checkbox" checked={options.cheapSubagents} onChange={(e) => onOptions({ ...options, cheapSubagents: e.target.checked })} />
@@ -143,7 +143,7 @@ export function Composer({
         </div>
       )}
 
-      <div className="rounded-3xl border border-white/15 bg-[#141a22] px-4 pt-3 pb-2.5 shadow-[0_10px_40px_rgba(0,0,0,0.35)] focus-within:border-white/30">
+      <div className="rounded-lg border border-ink/15 bg-term-panel px-4 pt-3 pb-2.5 shadow-[0_10px_40px_rgba(0,0,0,0.35)] focus-within:border-ink/30">
         <textarea
           ref={box}
           value={text}
@@ -161,7 +161,7 @@ export function Composer({
         <div className="mt-2 flex items-center gap-2">
           <button
             onClick={() => setAdvanced(!advanced)}
-            className={`rounded-full px-3 py-1 text-xs transition-colors ${advanced ? "bg-white/15 text-term-fg" : "text-term-dim hover:bg-white/10 hover:text-term-fg"}`}
+            className={`rounded px-3 py-1 text-xs transition-colors ${advanced ? "bg-ink/15 text-term-fg" : "text-term-dim hover:bg-ink/10 hover:text-term-fg"}`}
           >
             Advanced
           </button>
@@ -169,7 +169,7 @@ export function Composer({
             options={options}
             onOptions={onOptions}
             models={models}
-            className="max-w-[12rem] cursor-pointer truncate rounded-full border-0 bg-transparent px-2 py-1 text-xs text-term-dim hover:bg-white/10 hover:text-term-fg"
+            className="max-w-[12rem] cursor-pointer truncate rounded border-0 bg-transparent px-2 py-1 text-xs text-term-dim hover:bg-ink/10 hover:text-term-fg"
           />
           <span className="hidden font-mono text-[11px] text-term-dim sm:inline">
             {options.role} · {perms}/4 perms · {Math.round(options.tokenBudget / 1000)}k tokens
@@ -178,14 +178,14 @@ export function Composer({
             {options.approval ? " · approval on" : ""}
           </span>
           {running ? (
-            <button onClick={onStop} className="ml-auto flex h-9 w-9 items-center justify-center rounded-full bg-white text-black hover:bg-white/80" title="Stop">
-              <span className="h-3 w-3 rounded-[2px] bg-black" />
+            <button onClick={onStop} className="ml-auto flex h-9 w-9 items-center justify-center rounded-md bg-accent text-on-accent hover:bg-accent/85" title="Stop">
+              <span className="h-3 w-3 rounded-[2px] bg-on-accent" />
             </button>
           ) : (
             <button
               onClick={send}
               disabled={!text.trim()}
-              className="ml-auto flex h-9 w-9 items-center justify-center rounded-full bg-white text-black transition-opacity hover:bg-white/80 disabled:opacity-30"
+              className="ml-auto flex h-9 w-9 items-center justify-center rounded-md bg-accent text-on-accent transition-opacity hover:bg-accent/85 disabled:opacity-30"
               title="Send"
             >
               ↑
@@ -195,7 +195,7 @@ export function Composer({
       </div>
       <p className="mt-2 text-center text-xs text-term-dim">
         {needsKey ? (
-          <span className="text-amber-200">
+          <span className="text-warn">
             This server runs on your own Anthropic API key.{" "}
             <button onClick={() => setAdvanced(true)} className="underline">
               Add your key
@@ -255,7 +255,7 @@ function KeyField({ state, models }: { state?: ModelsState | undefined; models: 
   const [draft, setDraft] = useState("");
   const key = state?.userKey;
   return (
-    <div className="mb-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+    <div className="mb-4 rounded-md border border-ink/10 bg-sunk/20 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="label-caps">Your API key</span>
         <span className="font-mono text-[11px] text-term-dim">
@@ -270,7 +270,7 @@ function KeyField({ state, models }: { state?: ModelsState | undefined; models: 
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={key ? "Paste a new key to replace it" : "sk-ant-…"}
-          className="min-w-0 flex-1 border border-white/15 bg-black/30 px-3 py-1.5 font-mono text-sm"
+          className="min-w-0 flex-1 border border-ink/15 bg-sunk/30 px-3 py-1.5 font-mono text-sm"
         />
         <button
           onClick={() => {
@@ -290,9 +290,9 @@ function KeyField({ state, models }: { state?: ModelsState | undefined; models: 
         )}
       </div>
       {state?.error && key ? (
-        <div className="mt-2 text-xs text-red-300">{state.error}</div>
+        <div className="mt-2 text-xs text-danger">{state.error}</div>
       ) : key && state?.data ? (
-        <div className="mt-2 text-xs text-emerald-300">Key works. {state.data.models.length} models available.</div>
+        <div className="mt-2 text-xs text-ok">Key works. {state.data.models.length} models available.</div>
       ) : null}
       <p className="mt-2 text-xs text-term-dim">
         Stored in this browser only. The API holds it in memory while your job runs and never writes it to the log or database.

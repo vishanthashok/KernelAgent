@@ -38,7 +38,7 @@ export function IpcView({ messages, processes, onSelect }: { messages: IpcMessag
             </thead>
             <tbody className="text-sm">
               {boxes.map(({ p, pending, received, sent }) => (
-                <tr key={p.pid} className="border-t border-white/[0.06]">
+                <tr key={p.pid} className="border-t border-ink/[0.06]">
                   <td className="px-2 py-2.5">
                     <Pid pid={p.pid} />
                   </td>
@@ -46,7 +46,7 @@ export function IpcView({ messages, processes, onSelect }: { messages: IpcMessag
                   <td className="px-2 py-2.5">
                     <StateChip status={p.status} detail={p.waitingOn?.toLowerCase()} />
                   </td>
-                  <td className={`px-2 py-2.5 font-mono ${pending ? "text-amber-300" : "text-term-dim"}`}>{pending}</td>
+                  <td className={`px-2 py-2.5 font-mono ${pending ? "text-warn" : "text-term-dim"}`}>{pending}</td>
                   <td className="px-2 py-2.5 font-mono text-term-dim">{received}</td>
                   <td className="px-2 py-2.5 font-mono text-term-dim">{sent}</td>
                 </tr>
@@ -60,14 +60,14 @@ export function IpcView({ messages, processes, onSelect }: { messages: IpcMessag
         {messages.length === 0 && <p className="text-term-dim">No messages yet.</p>}
         <div className="space-y-2">
           {[...messages].reverse().map((m) => (
-            <div key={m.id} className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3">
+            <div key={m.id} className="rounded-md border border-ink/[0.08] bg-ink/[0.02] px-4 py-3">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <Pid pid={m.from} />
                 <span className="text-term-dim">→</span>
                 <Pid pid={m.to} />
                 <span
-                  className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${
-                    m.receivedAt ? "bg-white/5 text-term-dim" : "bg-amber-300/10 text-amber-200"
+                  className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${
+                    m.receivedAt ? "bg-ink/5 text-term-dim" : "bg-warn/10 text-warn"
                   }`}
                 >
                   {m.receivedAt ? "delivered" : "queued"}

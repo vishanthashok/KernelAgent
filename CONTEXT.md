@@ -116,6 +116,12 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 - A job that brought a key never falls back to the server key. A retry after the key is dropped fails and asks for a resubmit.
 - The console stores the key in localStorage (`kernelagent.providerKey`) and the last picked model in `kernelagent.model`.
 
+## Design system
+
+- Datadog-style: every page sits in `components/shell/AppShell.tsx` (dark nav rail, a top bar on phones) with a `PageHeader` title bar. Widgets are `card` (flat panel, hairline border, 4px radius).
+- Themes: light by default, dark via the rail toggle (`lib/theme.ts`, saved as `kernelagent.theme`). An inline script in `app/layout.tsx` applies it before paint.
+- All colors are CSS variables in `app/globals.css` (`:root` light, `[data-theme="dark"]` dark), exposed as Tailwind colors (`term-*`, `ink`, `sunk`, `accent`, `ok`, `warn`, `danger`). Use those or `dark:` variants, never raw hex or `white/`/`black/` tints. Chart series and status colors are validated per theme.
+
 ## Dashboard
 
 - `/dashboard` (`apps/console/components/dashboard/*`) reads `GET /metrics?range=15m|1h|6h|24h|7d`. It does not use the WS stream, so it works for long windows.

@@ -12,7 +12,7 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
   return (
     <div className="mb-4">
       <div className="label-caps mb-2">{title}</div>
-      <div className="max-h-72 overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">{children}</div>
+      <div className="max-h-72 overflow-auto rounded-md border border-ink/10 bg-sunk/30 p-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap">{children}</div>
     </div>
   );
 }
@@ -46,13 +46,13 @@ function EventDetail({ e }: { e: KernelEvent }) {
         <Block title={`MESSAGES (${msgs.length}) · tools: ${(p.request?.tools ?? []).map((t: P) => t.name).join(", ")}`}>
           {msgs.map((m, i) => (
             <div key={i} className="mb-1">
-              <span className={m.role === "user" ? "text-amber-200" : "text-cyan-300"}>{m.role}: </span>
+              <span className={m.role === "user" ? "text-warn" : "text-cyan-700 dark:text-cyan-300"}>{m.role}: </span>
               {renderContent(m.content)}
             </div>
           ))}
         </Block>
         <Block title="RESPONSE">
-          <span className="text-cyan-300">{renderContent(p.response?.content)}</span>
+          <span className="text-cyan-700 dark:text-cyan-300">{renderContent(p.response?.content)}</span>
         </Block>
       </>
     );
@@ -113,15 +113,15 @@ export function TracesView({
 
   return (
     <div className="flex h-full flex-col gap-5">
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-        <select value={jobId ?? ""} onChange={(e) => (setJobId(e.target.value), setCursor(undefined))} className="border border-white/15 bg-black/30 px-3 py-1.5 text-sm">
+      <div className="flex flex-wrap items-center gap-3 rounded-md border border-ink/10 bg-sunk/20 px-4 py-3">
+        <select value={jobId ?? ""} onChange={(e) => (setJobId(e.target.value), setCursor(undefined))} className="border border-ink/15 bg-sunk/30 px-3 py-1.5 text-sm">
           {[...jobs].reverse().map((j) => (
             <option key={j.id} value={j.id}>
               {j.id} {j.name ?? ""}
             </option>
           ))}
         </select>
-        <select value={pid} onChange={(e) => (setPid(e.target.value), setCursor(undefined))} className="border border-white/15 bg-black/30 px-3 py-1.5 text-sm">
+        <select value={pid} onChange={(e) => (setPid(e.target.value), setCursor(undefined))} className="border border-ink/15 bg-sunk/30 px-3 py-1.5 text-sm">
           <option value="all">all pids</option>
           {pids.map((p) => (
             <option key={p} value={p}>
@@ -157,12 +157,12 @@ export function TracesView({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-5 xl:flex-row">
-        <div className="max-h-[70vh] overflow-auto rounded-xl border border-white/10 bg-black/20 p-2 font-mono text-[12px] whitespace-pre xl:w-1/2">
+        <div className="max-h-[70vh] overflow-auto rounded-md border border-ink/10 bg-sunk/20 p-2 font-mono text-[12px] whitespace-pre xl:w-1/2">
           {visible.map((e, i) => (
             <div
               key={e.sequence}
               onClick={() => (setPlaying(false), setCursor(i))}
-              className={`cursor-pointer rounded-md px-2 py-0.5 ${i === idx ? "bg-white/10 text-term-fg" : i > idx ? "text-term-dim/50" : "text-term-dim hover:text-term-fg"}`}
+              className={`cursor-pointer rounded-md px-2 py-0.5 ${i === idx ? "bg-ink/10 text-term-fg" : i > idx ? "text-term-dim/50" : "text-term-dim hover:text-term-fg"}`}
             >
               {String(e.sequence).padStart(5)} {clock(e.timestamp)} {e.pid ? `PID ${e.pid.padEnd(4)}` : "job     "} {e.type.padEnd(17)} {describe(e)}
             </div>

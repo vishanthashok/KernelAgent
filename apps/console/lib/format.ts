@@ -2,12 +2,12 @@ import type { KernelEvent, ProcessStatus } from "@kernelagent/kernel/types";
 import type { ReplayedProcess } from "@kernelagent/kernel/replay";
 
 export const STATE_COLOR: Record<ProcessStatus, string> = {
-  NEW: "text-zinc-500",
-  READY: "text-amber-300",
-  RUNNING: "text-emerald-400",
-  WAITING: "text-sky-400",
-  TERMINATED: "text-zinc-400",
-  FAILED: "text-red-400",
+  NEW: "text-term-dim",
+  READY: "text-amber-700 dark:text-amber-300",
+  RUNNING: "text-emerald-700 dark:text-emerald-400",
+  WAITING: "text-sky-700 dark:text-sky-400",
+  TERMINATED: "text-term-dim",
+  FAILED: "text-red-700 dark:text-red-400",
 };
 
 export const STATE_FILL: Record<ProcessStatus, string> = {
@@ -17,6 +17,16 @@ export const STATE_FILL: Record<ProcessStatus, string> = {
   WAITING: "#2f7bb5",
   TERMINATED: "#2a2f33",
   FAILED: "#a33a3a",
+};
+
+/** State colors for dots and bars that follow the theme (status palette plus neutrals). */
+export const STATE_DOT: Record<ProcessStatus, string> = {
+  NEW: "var(--chart-axis)",
+  READY: "var(--status-warning)",
+  RUNNING: "var(--status-good)",
+  WAITING: "var(--series-1)",
+  TERMINATED: "color-mix(in oklab, var(--dim) 45%, transparent)",
+  FAILED: "var(--status-critical)",
 };
 
 export const hhmmss = (ms: number) => {

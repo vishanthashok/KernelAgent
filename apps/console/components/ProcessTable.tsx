@@ -50,7 +50,7 @@ export function ProcessTable({
               <tr
                 key={p.pid}
                 onClick={() => onSelect(p.pid)}
-                className="cursor-pointer border-t border-white/[0.06] transition-colors hover:bg-white/[0.04]"
+                className="cursor-pointer border-t border-ink/[0.06] transition-colors hover:bg-ink/[0.04]"
               >
                 <td className="px-3 py-3 text-term-accent">{p.pid}</td>
                 <td className="px-3 py-3 font-sans text-sm">

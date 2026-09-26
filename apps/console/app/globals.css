@@ -1,21 +1,74 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --color-term-bg: #0b0e12;
-  --color-term-panel: #131820;
-  --color-term-line: #252c36;
-  --color-term-fg: #e8edf2;
-  --color-term-dim: #8a96a3;
-  --color-term-accent: #b9d4ff;
+/* Design tokens. Light is the default. [data-theme="dark"] on <html> switches to dark; a
+   script in layout.tsx sets it before paint from the saved choice or the OS setting. The
+   Tailwind colors below point at these variables, so every utility follows the theme. */
+:root {
+  color-scheme: light;
+  --canvas: #f4f5f8;
+  --panel: #ffffff;
+  --panel-2: #f8f9fb;
+  --line: #e1e3ea;
+  --fg: #1f2330;
+  --dim: #5f6677;
+  --link: #632ca6;
+  --accent: #632ca6;
+  --on-accent: #ffffff;
+  --ink: #1f2330;
+  --sunk: #dfe2ea;
+  --nav: #221a38;
+  --nav-fg: #cfc8e3;
+  --nav-active: #ffffff;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --danger: #cf222e;
+  --tooltip: #ffffff;
+  --shadow: 0 1px 2px rgba(31, 35, 48, 0.06);
+
+  /* Chart palette: reference categorical steps, validated against the light widget surface
+     (#ffffff): adjacent CVD ΔE >= 9.1, normal ΔE >= 19.6. Slots 3-5 sit under 3:1, so every
+     chart carries a legend and a table view. Assign in slot order, never cycled. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+  /* Status colors are reserved for states and always ship with a label. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --chart-grid: #eef0f4;
+  --chart-axis: #c3c7d2;
 }
 
-/* Chart palette. Categorical slots are the dark steps of the validated reference palette,
-   checked against the card surface (#121519): CVD ΔE >= 8.4, normal ΔE >= 19.3, >= 3:1.
-   Assign in slot order, never cycled. Status colors are reserved for states and always
-   ship with a label. */
-:root {
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #121319;
+  --panel: #1c1d26;
+  --panel-2: #22232d;
+  --line: #2f3140;
+  --fg: #e6e8ef;
+  --dim: #9aa0b2;
+  --link: #b69cf0;
+  --accent: #8a5cd6;
+  --on-accent: #ffffff;
+  --ink: #ffffff;
+  --sunk: #000000;
+  --nav: #16121f;
+  --nav-fg: #a9a2bf;
+  --nav-active: #ffffff;
+  --ok: #3fb950;
+  --warn: #e3b341;
+  --danger: #f85149;
+  --tooltip: #262734;
+  --shadow: none;
+
+  /* Dark steps of the same eight hues, validated against the dark widget surface (#1c1d26):
+     adjacent CVD ΔE >= 8.4, normal ΔE >= 19.3, all >= 3:1. */
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
@@ -24,96 +77,132 @@
   --series-6: #008300;
   --series-7: #9085e9;
   --series-8: #e66767;
-  --status-good: #0ca30c;
-  --status-warning: #fab219;
-  --status-serious: #ec835a;
-  --status-critical: #d03b3b;
-  --chart-grid: rgba(255, 255, 255, 0.06);
-  --chart-axis: rgba(255, 255, 255, 0.18);
+  --chart-grid: #262836;
+  --chart-axis: #3d4052;
+}
+
+/* dark: variants follow the data-theme attribute, not the OS setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  /* term-* names are kept so existing classes follow the theme. */
+  --color-term-bg: var(--canvas);
+  --color-term-panel: var(--panel);
+  --color-term-panel-2: var(--panel-2);
+  --color-term-line: var(--line);
+  --color-term-fg: var(--fg);
+  --color-term-dim: var(--dim);
+  --color-term-accent: var(--link);
+  /* Washes and hairlines: ink at low alpha reads on either theme. */
+  --color-ink: var(--ink);
+  --color-sunk: var(--sunk);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-nav: var(--nav);
+  --color-nav-fg: var(--nav-fg);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-tooltip: var(--tooltip);
 }
 
 html,
 body {
-  background: var(--color-term-bg);
-  color: var(--color-term-fg);
+  background: var(--canvas);
+  color: var(--fg);
   font-family: var(--font-sans);
   font-size: 13px;
 }
 
-/* Dusk sky behind everything: cool blue top left, faint warm light top right. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(900px 500px at 15% -10%, rgba(88, 130, 190, 0.28), transparent 60%),
-    radial-gradient(700px 400px at 90% -5%, rgba(214, 170, 130, 0.14), transparent 60%),
-    radial-gradient(1200px 700px at 50% 120%, rgba(40, 70, 60, 0.35), transparent 60%),
-    var(--color-term-bg);
-}
-
 ::selection {
-  background: #35507a;
+  background: color-mix(in oklab, var(--accent) 30%, transparent);
 }
 
+/* Base form styles live in a layer so utility classes on an element still win. */
+@layer base {
 input[type="range"],
 input[type="checkbox"] {
-  accent-color: #ffffff;
+  accent-color: var(--accent);
 }
 
 select,
 input,
 textarea {
-  border-radius: 10px;
+  border-radius: 4px;
 }
 
+select,
+input:not([type="checkbox"]):not([type="range"]),
+textarea {
+  border-color: var(--line);
+  background-color: var(--panel);
+  color: var(--fg);
+}
+
+select:focus,
+input:focus,
+textarea:focus {
+  outline: 2px solid color-mix(in oklab, var(--accent) 45%, transparent);
+  outline-offset: -1px;
+}
+}
+
+/* A widget: flat panel, hairline border, small radius. */
 @utility card {
-  border-radius: 20px;
-  border: 1px solid rgb(255 255 255 / 0.08);
-  background: rgb(255 255 255 / 0.035);
-  backdrop-filter: blur(14px);
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
 }
 
 @utility label-caps {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
-  letter-spacing: 0.22em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--color-term-dim);
+  color: var(--dim);
 }
 
 @utility pill {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  border-radius: 9999px;
-  padding: 0.45rem 1.1rem;
+  border-radius: 4px;
+  padding: 0.35rem 0.8rem;
   font-weight: 500;
-  transition: background 150ms, color 150ms, border-color 150ms;
+  transition: background 120ms, color 120ms, border-color 120ms;
 }
 
+/* Primary action and selected state. */
 @utility pill-light {
-  background: #ffffff;
-  color: #0b0e12;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
   &:hover {
-    background: #e6ebf1;
+    background: color-mix(in oklab, var(--accent) 85%, black);
   }
 }
 
 @utility pill-dark {
-  background: #0b0e12;
-  color: #ffffff;
+  background: var(--fg);
+  color: var(--panel);
+  border: 1px solid var(--fg);
   &:hover {
-    background: #262d36;
+    background: color-mix(in oklab, var(--fg) 85%, var(--panel));
   }
 }
 
+/* Secondary action. */
 @utility pill-ghost {
-  border: 1px solid rgb(255 255 255 / 0.35);
-  color: #ffffff;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--fg);
   &:hover {
-    background: rgb(255 255 255 / 0.08);
+    background: var(--panel-2);
+    border-color: color-mix(in oklab, var(--fg) 25%, var(--line));
   }
 }
 
@@ -165,26 +254,28 @@ textarea {
   font-weight: 600;
 }
 .md blockquote {
-  border-left: 2px solid rgb(255 255 255 / 0.2);
+  border-left: 2px solid var(--line);
   padding-left: 1em;
   color: var(--color-term-dim);
 }
 .md code {
   font-family: var(--font-mono);
   font-size: 0.88em;
-  background: rgb(255 255 255 / 0.07);
-  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
   padding: 0.12em 0.4em;
 }
 .md pre {
-  background: rgb(0 0 0 / 0.35);
-  border: 1px solid rgb(255 255 255 / 0.08);
-  border-radius: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
   padding: 0.9em 1em;
   overflow-x: auto;
 }
 .md pre code {
   background: none;
+  border: 0;
   padding: 0;
 }
 .md table {
@@ -194,10 +285,10 @@ textarea {
 }
 .md th,
 .md td {
-  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+  border-bottom: 1px solid var(--line);
   padding: 0.45em 0.6em;
   text-align: left;
 }
 .md hr {
-  border-color: rgb(255 255 255 / 0.1);
+  border-color: var(--line);
 }

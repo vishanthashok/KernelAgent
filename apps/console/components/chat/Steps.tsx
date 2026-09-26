@@ -5,14 +5,14 @@ import type { Step } from "@/lib/steps";
 const TONE: Record<Step["tone"], string> = {
   thought: "text-term-fg/80",
   action: "text-term-dim",
-  warn: "text-amber-200",
-  error: "text-red-300",
-  file: "text-emerald-300",
+  warn: "text-warn",
+  error: "text-danger",
+  file: "text-ok",
 };
 
 const DOT: Record<Step["tone"], string> = {
-  thought: "bg-white/40",
-  action: "bg-white/20",
+  thought: "bg-ink/40",
+  action: "bg-ink/20",
   warn: "bg-amber-300",
   error: "bg-red-400",
   file: "bg-emerald-400",
@@ -33,7 +33,7 @@ export function Steps({ steps, running, multiAgent }: { steps: Step[]; running: 
         {running && steps.length > 0 && <span className="max-w-[28rem] truncate text-term-dim/70">· {steps[steps.length - 1]!.text}</span>}
       </button>
       {isOpen && steps.length > 0 && (
-        <ol className="mt-2 space-y-1.5 border-l border-white/10 pl-4">
+        <ol className="mt-2 space-y-1.5 border-l border-ink/10 pl-4">
           {steps.map((s) => (
             <li key={s.seq} className="relative">
               <span className={`absolute top-[0.55em] -left-[1.2rem] h-1.5 w-1.5 rounded-full ${DOT[s.tone]}`} />
@@ -47,7 +47,7 @@ export function Steps({ steps, running, multiAgent }: { steps: Step[]; running: 
                 )}
               </div>
               {s.detail && expanded === s.seq && (
-                <pre className="mt-1.5 max-h-64 overflow-auto rounded-lg border border-white/10 bg-black/40 p-3 font-mono text-[12px] whitespace-pre-wrap text-term-dim">
+                <pre className="mt-1.5 max-h-64 overflow-auto rounded-lg border border-ink/10 bg-sunk/40 p-3 font-mono text-[12px] whitespace-pre-wrap text-term-dim">
                   {s.detail}
                 </pre>
               )}

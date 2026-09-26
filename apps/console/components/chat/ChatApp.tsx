@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { api } from "@/lib/api";
 import {
   DEFAULT_OPTIONS,
@@ -22,6 +21,7 @@ import { ChatSidebar } from "./ChatSidebar";
 import { Composer } from "./Composer";
 import { ApiBanner } from "../ApiBanner";
 import { StatsPanel } from "./StatsPanel";
+import { AppShell } from "../shell/AppShell";
 
 const STATS_KEY = "kernelagent.statsPanel";
 
@@ -157,7 +157,8 @@ export function ChatApp() {
   };
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <AppShell active="chat" status={k.connected}>
+    <div className="flex min-h-0 flex-1 overflow-hidden">
       <ChatSidebar
         chats={chats}
         activeId={activeId}
@@ -176,25 +177,18 @@ export function ChatApp() {
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 px-4 py-3 md:px-6">
-          <button onClick={() => setSidebar(true)} className="rounded-lg px-2 py-1 text-lg text-term-dim hover:bg-white/10 md:hidden" aria-label="Open chats">
+        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-term-line bg-term-panel px-4 md:px-5">
+          <button onClick={() => setSidebar(true)} className="rounded-lg px-2 py-1 text-lg text-term-dim hover:bg-ink/10 md:hidden" aria-label="Open chats">
             ☰
           </button>
-          <div className="min-w-0 flex-1 truncate text-sm font-medium text-term-dim">{active?.title ?? "New chat"}</div>
+          <div className="min-w-0 flex-1 truncate text-[15px] font-semibold">{active?.title ?? "New chat"}</div>
           <button
             onClick={() => toggleStats(!statsOpen)}
-            className={`rounded-full px-3 py-1 font-mono text-[11px] tracking-[0.2em] uppercase transition-colors ${
-              statsOpen ? "bg-white/15 text-term-fg" : "text-term-dim hover:bg-white/10 hover:text-term-fg"
-            }`}
+            className={`pill py-1 text-xs ${statsOpen ? "pill-light" : "pill-ghost"}`}
+            aria-pressed={statsOpen}
           >
             Stats
           </button>
-          <Link href="/dashboard" className="hidden font-mono text-[11px] tracking-[0.2em] text-term-dim uppercase hover:text-term-fg sm:inline">
-            Dashboard
-          </Link>
-          <Link href="/console" className="font-mono text-[11px] tracking-[0.2em] text-term-dim uppercase hover:text-term-fg">
-            Console →
-          </Link>
         </header>
 
         <div
@@ -207,8 +201,8 @@ export function ChatApp() {
         >
           {!active || active.turns.length === 0 ? (
             <div className="mx-auto flex h-full max-w-3xl flex-col items-center justify-center px-4 text-center">
-              <div className="label-caps mb-4">Agent kernel</div>
-              <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">What should your agents do?</h1>
+              <div className="label-caps mb-3">Agent kernel</div>
+              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">What should your agents do?</h1>
               <p className="mt-4 max-w-lg text-term-dim">
                 Each message runs as a sandboxed agent with its own budget and permissions. Files it saves to /output/ come back as downloads.
               </p>
@@ -217,7 +211,7 @@ export function ChatApp() {
                   <button
                     key={s}
                     onClick={() => void send(s)}
-                    className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left text-sm text-term-dim transition-colors hover:border-white/25 hover:text-term-fg"
+                    className="card p-4 text-left text-sm text-term-dim transition-colors hover:border-accent hover:text-term-fg"
                   >
                     {s}
                   </button>
@@ -229,7 +223,7 @@ export function ChatApp() {
               {active.turns.map((t) => (
                 <div key={t.id} className="space-y-4">
                   <div className="flex justify-end">
-                    <div className="max-w-[85%] rounded-3xl bg-white/10 px-5 py-3 text-[15px] leading-relaxed whitespace-pre-wrap">{t.prompt}</div>
+                    <div className="max-w-[85%] rounded-lg bg-ink/10 px-5 py-3 text-[15px] leading-relaxed whitespace-pre-wrap">{t.prompt}</div>
                   </div>
                   <AssistantTurn turn={t} k={k} models={models} onRetry={() => void send(t.prompt)} />
                 </div>
@@ -246,8 +240,8 @@ export function ChatApp() {
 
       {statsOpen && (
         <>
-          <div className="fixed inset-0 z-20 bg-black/60 xl:hidden" onClick={() => toggleStats(false)} />
-          <aside className="fixed inset-y-0 right-0 z-30 w-[22rem] max-w-[90vw] border-l border-white/10 bg-[#0d1116] xl:static xl:z-auto">
+          <div className="fixed inset-0 z-20 bg-sunk/60 xl:hidden" onClick={() => toggleStats(false)} />
+          <aside className="fixed inset-y-0 right-0 z-30 w-[22rem] max-w-[90vw] border-l border-term-line bg-term-panel xl:static xl:z-auto">
             <StatsPanel
               k={k}
               jobIds={active?.turns.flatMap((t) => (t.jobId ? [t.jobId] : [])) ?? []}
@@ -260,5 +254,6 @@ export function ChatApp() {
         </>
       )}
     </div>
+    </AppShell>
   );
 }

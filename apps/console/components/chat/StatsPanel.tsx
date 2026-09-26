@@ -5,7 +5,7 @@ import type { ReplayedProcess } from "@kernelagent/kernel/replay";
 import type { KernelState } from "@/lib/useKernel";
 import { useNow } from "@/lib/useKernel";
 import type { ResolvedModel } from "@/lib/useModels";
-import { clock, describe, hhmmss, STATE_COLOR, STATE_FILL } from "@/lib/format";
+import { clock, describe, hhmmss, STATE_COLOR, STATE_DOT } from "@/lib/format";
 
 const BUCKETS = 20;
 const BUCKET_MS = 30_000;
@@ -27,7 +27,7 @@ const compact = (n: number) => (n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n 
 
 function Section({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="border-b border-white/10 px-5 py-4">
+    <section className="border-b border-ink/10 px-5 py-4">
       <div className="mb-3 flex items-center">
         <span className="label-caps">{title}</span>
         {right !== undefined && <span className="ml-auto font-mono text-[11px] text-term-dim">{right}</span>}
@@ -39,14 +39,14 @@ function Section({ title, right, children }: { title: string; right?: React.Reac
 
 function Gauge({ label, value, sub }: { label: string; value: number; sub: string }) {
   const pct = Math.round(Math.min(1, Math.max(0, value)) * 100);
-  const color = pct > 85 ? "#f87171" : pct > 60 ? "#fbbf24" : "#34d399";
+  const color = pct > 85 ? "var(--status-critical)" : pct > 60 ? "var(--status-warning)" : "var(--status-good)";
   return (
     <div>
       <div className="flex items-baseline text-xs">
         <span className="text-term-dim">{label}</span>
         <span className="ml-auto font-mono">{sub}</span>
       </div>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink/10">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
       </div>
     </div>
@@ -55,7 +55,7 @@ function Gauge({ label, value, sub }: { label: string; value: number; sub: strin
 
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+    <div className="rounded-md border border-ink/10 bg-ink/[0.03] px-3 py-2.5">
       <div className="text-[11px] text-term-dim">{label}</div>
       <div className="mt-0.5 font-mono text-[15px]">{value}</div>
     </div>
@@ -81,7 +81,7 @@ function Throughput({ calls, end }: { calls: LlmCall[]; end: number }) {
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className="h-[72px] w-full" preserveAspectRatio="none" role="img" aria-label="Tokens per 30 seconds">
         {[0.5, 1].map((f) => (
-          <line key={f} x1={0} x2={W} y1={H - f * H + 0.5} y2={H - f * H + 0.5} stroke="rgba(255,255,255,0.06)" />
+          <line key={f} x1={0} x2={W} y1={H - f * H + 0.5} y2={H - f * H + 0.5} stroke="var(--chart-grid)" />
         ))}
         {buckets.map((b, i) => {
           const hIn = (b.in / max) * (H - 2);
@@ -89,19 +89,19 @@ function Throughput({ calls, end }: { calls: LlmCall[]; end: number }) {
           const x = i * bw + 1;
           return (
             <g key={i}>
-              <rect x={x} width={bw - 2} y={H - hIn} height={hIn} rx={1.5} fill="#5b8def" opacity={0.85} />
-              <rect x={x} width={bw - 2} y={H - hIn - hOut} height={hOut} rx={1.5} fill="#b9d4ff" />
+              <rect x={x} width={bw - 2} y={H - hIn} height={hIn} rx={1.5} fill="var(--series-1)" />
+              <rect x={x} width={bw - 2} y={H - hIn - hOut} height={hOut} rx={1.5} fill="var(--series-2)" />
             </g>
           );
         })}
-        <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} stroke="rgba(255,255,255,0.15)" />
+        <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} stroke="var(--chart-axis)" />
       </svg>
       <div className="mt-2 flex items-center gap-3 text-[11px] text-term-dim">
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-sm bg-[#5b8def]" /> input
+          <span className="h-2 w-2 rounded-sm bg-[var(--series-1)]" /> input
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-sm bg-[#b9d4ff]" /> output
+          <span className="h-2 w-2 rounded-sm bg-[var(--series-2)]" /> output
         </span>
         <span className="ml-auto font-mono">{compact(total)} in 10 min</span>
       </div>
@@ -114,13 +114,13 @@ function AgentRow({ p }: { p: ReplayedProcess }) {
   return (
     <div className="py-1.5">
       <div className="flex items-center gap-2 text-xs">
-        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATE_FILL[p.status] }} />
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATE_DOT[p.status] }} />
         <span className="font-mono text-term-accent">{p.pid}</span>
         <span className="min-w-0 flex-1 truncate">{p.role}</span>
         <span className={`font-mono text-[10px] ${STATE_COLOR[p.status]}`}>{p.status.toLowerCase()}</span>
       </div>
       <div className="mt-1 ml-4 flex items-center gap-2">
-        <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
+        <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink/10">
           <div className="h-full rounded-full bg-term-accent/70" style={{ width: `${used * 100}%` }} />
         </div>
         <span className="font-mono text-[10px] text-term-dim">
@@ -200,11 +200,11 @@ export function StatsPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-white/10 px-5 py-3.5">
+      <div className="flex items-center gap-2 border-b border-ink/10 px-5 py-3.5">
         <span className={`h-2 w-2 rounded-full ${k.connected ? "bg-emerald-400" : "bg-red-400"}`} />
         <span className="text-sm font-medium">{k.connected ? "Live" : "Offline"}</span>
         <span className="font-mono text-[11px] text-term-dim">{s ? `up ${hhmmss(now - s.bootedAt)}` : ""}</span>
-        <button onClick={onClose} className="ml-auto rounded-md px-2 py-0.5 text-term-dim hover:bg-white/10 hover:text-term-fg" aria-label="Hide stats">
+        <button onClick={onClose} className="ml-auto rounded-md px-2 py-0.5 text-term-dim hover:bg-ink/10 hover:text-term-fg" aria-label="Hide stats">
           ✕
         </button>
       </div>
@@ -238,7 +238,7 @@ export function StatsPanel({
             <Metric label="Model calls" value={chatCalls.length} />
             <Metric label="Avg latency" value={avgLatency ? `${(avgLatency / 1000).toFixed(1)}s` : "–"} />
             <Metric label="Cache hits" value={chatInput ? `${Math.round((chatCached / chatInput) * 100)}%` : "–"} />
-            <Metric label="Saved by cache" value={<span className="text-emerald-300">{usd(chatSaved)}</span>} />
+            <Metric label="Saved by cache" value={<span className="text-ok">{usd(chatSaved)}</span>} />
             <Metric label="Agents" value={agents.length} />
             <Metric label="Files" value={files} />
           </div>
@@ -255,8 +255,8 @@ export function StatsPanel({
                       {compact(m.tokens)} · {usd(m.cost)}
                     </span>
                   </div>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
-                    <div className="h-full rounded-full bg-[#b9d4ff]" style={{ width: `${(m.tokens / maxModel) * 100}%` }} />
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink/10">
+                    <div className="h-full rounded-full bg-[var(--series-2)]" style={{ width: `${(m.tokens / maxModel) * 100}%` }} />
                   </div>
                 </div>
               ))}
@@ -332,19 +332,19 @@ function MemorySection({ k, chatId, jobs }: { k: KernelState; chatId: string; jo
   return (
     <Section title="Memory" right={data ? `${data.count} ${data.count === 1 ? "entry" : "entries"}` : "…"}>
       {error ? (
-        <div className="text-xs text-red-300">{error}</div>
+        <div className="text-xs text-danger">{error}</div>
       ) : entries.length === 0 ? (
         <div className="text-xs text-term-dim">Empty. Answers and notes agents save land here, and every agent in this chat reads them.</div>
       ) : (
         <ul className="space-y-2">
           {shown.map((m) => (
-            <li key={m.id} className="group rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs">
+            <li key={m.id} className="group rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-2 text-xs">
               <div className="mb-1 flex items-center gap-2">
-                <span className={`font-mono text-[10px] uppercase ${m.kind === "note" ? "text-emerald-300" : "text-term-accent"}`}>{m.kind}</span>
+                <span className={`font-mono text-[10px] uppercase ${m.kind === "note" ? "text-ok" : "text-term-accent"}`}>{m.kind}</span>
                 {m.pid && <span className="font-mono text-[10px] text-term-dim">pid {m.pid}</span>}
                 <button
                   onClick={() => void api.deleteMemory(m.id).then(load)}
-                  className="ml-auto text-term-dim opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-300"
+                  className="ml-auto text-term-dim opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger"
                   title="Forget this"
                 >
                   ✕
@@ -366,7 +366,7 @@ function MemorySection({ k, chatId, jobs }: { k: KernelState; chatId: string; jo
             onClick={() => {
               if (confirm("Clear this chat's memory? Agents will lose the context of earlier messages.")) void api.clearMemory(chatId).then(load);
             }}
-            className="ml-auto text-term-dim hover:text-red-300"
+            className="ml-auto text-term-dim hover:text-danger"
           >
             Clear memory
           </button>

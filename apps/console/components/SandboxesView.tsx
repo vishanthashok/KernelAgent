@@ -8,9 +8,9 @@ export function SandboxesView({ processes, provider, onSelect }: { processes: Re
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <span className="rounded-full bg-white/[0.06] px-3 py-1 font-mono text-xs">provider: {provider ?? "none"}</span>
+        <span className="rounded-full bg-ink/[0.06] px-3 py-1 font-mono text-xs">provider: {provider ?? "none"}</span>
         {provider === "local" && (
-          <span className="text-sm text-amber-200">LocalSandbox is a temp folder on the host. Development only, not a security boundary.</span>
+          <span className="text-sm text-warn">LocalSandbox is a temp folder on the host. Development only, not a security boundary.</span>
         )}
       </div>
       {rows.length === 0 ? (
@@ -21,7 +21,7 @@ export function SandboxesView({ processes, provider, onSelect }: { processes: Re
             <button
               key={p.pid}
               onClick={() => onSelect(p.pid)}
-              className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 text-left transition-colors hover:border-white/20"
+              className="rounded-md border border-ink/[0.08] bg-ink/[0.02] p-4 text-left transition-colors hover:border-ink/20"
             >
               <div className="flex items-center gap-2">
                 <span className={`h-2 w-2 rounded-full ${live(p) ? "bg-emerald-400" : "bg-zinc-600"}`} />
