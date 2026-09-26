@@ -85,6 +85,16 @@ export function useModels(provider: string | undefined, defaultModel?: string): 
   return state;
 }
 
+/**
+ * True when nothing can run until the user adds a key: the API takes user keys and lists no
+ * model for this browser (the server has no key of its own, or the user's keys failed).
+ */
+export function needsUserKey(state: ModelsState | undefined): boolean {
+  const data = state?.data;
+  const hasKey = Object.keys(state?.keys ?? {}).length > 0;
+  return !!data?.acceptsUserKeys && data.models.length === 0 && (!!data.requiresUserKey || hasKey);
+}
+
 export interface ResolvedModel {
   id: string;
   name: string;

@@ -8,6 +8,18 @@ import type { ModelClient } from "./index.ts";
  * multi serves Claude and GPT models side by side, routed by model id. It also turns on
  * when LLM_PROVIDER=anthropic and OPENAI_API_KEY is set.
  */
+/**
+ * The env the API server builds its model client from. The API never answers with the
+ * server's own keys unless ALLOW_SERVER_KEY=true: every job brings the caller's key, so
+ * nobody runs on the owner's bill. On user keys, anthropic is served as multi so visitors
+ * can bring an OpenAI key too. The mock provider is unchanged, so a fresh clone still runs.
+ */
+export function apiModelEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  if (env.ALLOW_SERVER_KEY === "true") return env;
+  const provider = (env.LLM_PROVIDER ?? "mock").toLowerCase();
+  return { ...env, REQUIRE_USER_KEY: "true", ...(provider === "anthropic" ? { LLM_PROVIDER: "multi" } : {}) };
+}
+
 export async function createModelClient(
   env: NodeJS.ProcessEnv = process.env,
   mockOptions: MockLLMOptions = {},

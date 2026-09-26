@@ -208,7 +208,8 @@ curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/js
 | `ANTHROPIC_API_KEY` | | Server key for Claude models. Without any key the mock is used, unless `REQUIRE_USER_KEY=true`. |
 | `OPENAI_API_KEY` | | Server key for GPT models. With `LLM_PROVIDER=anthropic` it turns on `multi`. |
 | `ANTHROPIC_MODEL` / `OPENAI_MODEL` | `claude-opus-5` / `gpt-5` | Default model ids. A job can pick another with `"model"` in its spec, or from the chat's model picker. |
-| `REQUIRE_USER_KEY` | | `true` makes every job bring its own key (the `x-provider-key` header, set from `/connect`). The server's keys are never used. |
+| `REQUIRE_USER_KEY` | | `true` makes every job bring its own key (the `x-provider-key` header, set from `/connect`). The server's keys are never used. The API server always runs this way unless `ALLOW_SERVER_KEY=true`. |
+| `ALLOW_SERVER_KEY` | | API only. `true` lets jobs without a key run on the server's `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`. Off by default, so a public deploy never bills the owner. |
 | `SANDBOX_PROVIDER` | `local` | `local` or `e2b` |
 | `E2B_API_KEY` | | Required for `e2b`. Without it `local` is used. |
 | `MAX_CONCURRENCY` | `4` | Running process cap |
@@ -235,7 +236,7 @@ To turn it on (for example on Vercel):
 
 Sessions are JWT cookies. There is no user table. The login gates `/chat`, `/console`, `/dashboard`, and `/connect`. It does not pay for model calls: each visitor's own key does.
 
-For a public deploy, run the API with `LLM_PROVIDER=multi REQUIRE_USER_KEY=true`. Visitors add keys on `/connect`, which checks each key against `GET /models?provider=`. Keys stay in the browser and go to the API per job as a header. The API picks Claude or GPT from the job's model and refuses a key from the other provider.
+The API never answers with its own keys unless `ALLOW_SERVER_KEY=true`. A job without the visitor's key is refused, and the chat sends the visitor to `/connect`. `LLM_PROVIDER=anthropic` is served as `multi` in this mode, so OpenAI keys work too. Visitors add keys on `/connect`, which checks each key against `GET /models?provider=`. Keys stay in the browser and go to the API per job as a header. The API picks Claude or GPT from the job's model and refuses a key from the other provider.
 
 Claude.ai and ChatGPT subscriptions cannot be used here. Neither company lets third-party apps run models on a consumer account, so an API key is the only way in.
 

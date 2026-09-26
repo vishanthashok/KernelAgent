@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
@@ -15,7 +16,7 @@ import {
 } from "@/lib/chats";
 import { buildCapabilities } from "@/lib/permissions";
 import { useKernel } from "@/lib/useKernel";
-import { resolveModel, useModels } from "@/lib/useModels";
+import { needsUserKey, resolveModel, useModels } from "@/lib/useModels";
 import { AssistantTurn } from "./AssistantTurn";
 import { ChatSidebar } from "./ChatSidebar";
 import { Composer } from "./Composer";
@@ -33,6 +34,7 @@ const SUGGESTIONS = [
 
 export function ChatApp() {
   const k = useKernel();
+  const router = useRouter();
   const modelState = useModels(k.stats?.provider, k.stats?.model);
   const models = modelState.data;
   const [chats, setChats] = useState<Chat[]>([]);
@@ -105,6 +107,8 @@ export function ChatApp() {
     !!lastTurn && !lastTurn.error && (!lastRoot || (lastRoot.status !== "TERMINATED" && lastRoot.status !== "FAILED"));
 
   const send = async (prompt: string) => {
+    // Agents run on the visitor's own key. Without one, send them to add it.
+    if (needsUserKey(modelState)) return router.push("/connect");
     let chat = active;
     if (!chat) {
       chat = { id: newId(), title: titleFor(prompt), createdAt: Date.now(), updatedAt: Date.now(), turns: [], options };

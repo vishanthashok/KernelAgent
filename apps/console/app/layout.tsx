@@ -20,13 +20,13 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "KernelAgent", description: DESCRIPTION },
 };
 
-// Runs before paint so the page never flashes the wrong theme. Light unless the viewer
-// picked dark (saved in localStorage by the theme toggle).
-const THEME_SCRIPT = `try{var t=localStorage.getItem("kernelagent.theme");if(t==="dark")document.documentElement.dataset.theme="dark"}catch(e){}`;
+// Dark is the default and is set on <html> in the markup, so the first paint is dark. This
+// runs before paint and switches to light only if the viewer picked it with the theme toggle.
+const THEME_SCRIPT = `try{if(localStorage.getItem("kernelagent.theme")==="light")delete document.documentElement.dataset.theme}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrains.variable}`} suppressHydrationWarning>
+    <html lang="en" data-theme="dark" className={`${inter.variable} ${jetbrains.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>

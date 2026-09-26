@@ -3,7 +3,7 @@ import { initTelemetry } from "@kernelagent/telemetry";
 const telemetry = initTelemetry({ serviceName: "kernelagent-api" });
 
 const { Kernel } = await import("@kernelagent/kernel");
-const { createModelClient } = await import("@kernelagent/llm");
+const { apiModelEnv, createModelClient } = await import("@kernelagent/llm");
 const { Worker } = await import("@kernelagent/runtime");
 const { createSandbox } = await import("@kernelagent/sandbox");
 const { buildServer } = await import("./server.ts");
@@ -11,7 +11,8 @@ const { buildServer } = await import("./server.ts");
 // With the mock provider, load the example scripts so example jobs submitted over HTTP run
 // their scripted syscalls. MOCK_LATENCY_MS slows the mock down so the console is watchable.
 const { exampleScripts } = await import("../../examples/scripts.ts");
-const llm = await createModelClient(process.env, { scripts: exampleScripts, latencyMs: Number(process.env.MOCK_LATENCY_MS ?? 400) });
+// Jobs run on the caller's own key. The server's keys are used only with ALLOW_SERVER_KEY=true.
+const llm = await createModelClient(apiModelEnv(process.env), { scripts: exampleScripts, latencyMs: Number(process.env.MOCK_LATENCY_MS ?? 400) });
 const sandbox = await createSandbox();
 const kernel = new Kernel({ llm, sandbox });
 kernel.attachRunner(new Worker(kernel));

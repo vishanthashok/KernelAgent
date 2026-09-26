@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Design tokens. Light is the default. [data-theme="dark"] on <html> switches to dark; a
-   script in layout.tsx sets it before paint from the saved choice or the OS setting. The
+/* Design tokens. :root holds the light values. [data-theme="dark"] on <html> switches to dark,
+   which is the default: layout.tsx renders it, and a script removes it before paint when the
+   viewer picked light. The
    Tailwind colors below point at these variables, so every utility follows the theme. */
 :root {
   color-scheme: light;

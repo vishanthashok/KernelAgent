@@ -109,3 +109,20 @@ describe("RoutingClient", () => {
     await kernel.stop();
   });
 });
+
+describe("API model env", () => {
+  it("never runs on the server's key unless ALLOW_SERVER_KEY=true", async () => {
+    const { apiModelEnv, createModelClient } = await import("@kernelagent/llm");
+    const env = { LLM_PROVIDER: "anthropic", ANTHROPIC_API_KEY: "sk-ant-server-key" };
+    const locked = await createModelClient(apiModelEnv(env));
+    expect(locked.provider).toBe("multi");
+    expect(locked.requiresUserKey).toBe(true);
+    await expect(locked.complete({ system: "s", messages: [{ role: "user", content: "hi" }], tools: [] })).rejects.toThrow(/bring your own key/);
+
+    const open = await createModelClient(apiModelEnv({ ...env, ALLOW_SERVER_KEY: "true" }));
+    expect(open.requiresUserKey).toBe(false);
+
+    const mock = await createModelClient(apiModelEnv({}));
+    expect(mock.provider).toBe("mock");
+  });
+});
