@@ -125,6 +125,16 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **A job runs on one provider.** Its key and its model must match. The router refuses a mismatch, and `POST /jobs` rejects a model the key's provider does not list.
 - **OpenAI through Chat Completions.** Function tools map one-to-one onto syscall tools. Tool results become `role: "tool"` messages. Provider-opaque blocks (Anthropic thinking) are dropped, which is safe because a job never switches provider. OpenAI caches prefixes itself and reports only cache reads.
 
+## Accounts
+
+- **Accounts live in the API's database.** The console on Vercel has no database, and the API already has SQLite on a volume. Tables `users` and `chats`. Turned on by `ACCOUNTS_SECRET`, which the API and the console share.
+- **The console vouches for users, the browser carries a signed token.** The console's server calls `/accounts/signup|login|oauth` with the secret in `x-accounts-secret`. For browser calls, `/api/token` signs a one-hour HMAC token (`packages/kernel/user-token.ts`) with the user id. The API checks it on `x-user-token`. No new dependency.
+- **With accounts on, jobs, memory, and chats need a user.** `POST /jobs` rewrites `memoryScope` to `u<userId>_<chatId>`, and the memory routes do the same, so a user only reaches their own memory. Deleting a memory entry by id requires `?scope=` and matches both.
+- **Provider sign-in links by email.** GitHub and Google verify the email, so their sign-in finds or creates the account with it. Email sign-up on an address that already has a provider account is refused, since only the provider can prove the address.
+- **Chats move into the account on first sign-in** from this browser's localStorage, then local storage is cleared. Saves are debounced and send only chats whose JSON changed.
+- **Known gap:** the event stream (`WS /events/stream`) and the `/console` monitor still show every job on the server. Jobs have no owner yet.
+- **CORS allows PUT and DELETE.** It allowed only GET, HEAD, and POST before, which also blocked the console's memory deletes across origins.
+
 ## Connectors (planned)
 
 - An `MCP` syscall gated by a new `CONNECTOR` capability, scoped by server name, so agents call tools on MCP servers (GitHub, Google Drive, Slack) under the same capability checks, approval gate, and event log as other syscalls.

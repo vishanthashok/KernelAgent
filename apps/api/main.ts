@@ -21,6 +21,7 @@ kernel.start();
 const app = await buildServer(kernel, {
   logger: process.env.API_LOG === "true",
   ...(process.env.KERNEL_DEV_TOKEN ? { devToken: process.env.KERNEL_DEV_TOKEN } : {}),
+  ...(process.env.ACCOUNTS_SECRET ? { accountsSecret: process.env.ACCOUNTS_SECRET } : {}),
 });
 const port = Number(process.env.PORT ?? 4000);
 await app.listen({ port, host: process.env.HOST ?? "127.0.0.1" });

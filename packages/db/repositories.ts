@@ -490,12 +490,105 @@ export class MemoryRepo {
     return (this.db.prepare("SELECT COUNT(*) AS n FROM memories WHERE scope = ?").get(scope) as { n: number }).n;
   }
 
-  delete(id: number): boolean {
+  /** Delete one entry. With a scope, only if the entry belongs to it. */
+  delete(id: number, scope?: string): boolean {
+    if (scope !== undefined) return this.db.prepare("DELETE FROM memories WHERE id = ? AND scope = ?").run(id, scope).changes > 0;
     return this.db.prepare("DELETE FROM memories WHERE id = ?").run(id).changes > 0;
   }
 
   clear(scope: string): number {
     return this.db.prepare("DELETE FROM memories WHERE scope = ?").run(scope).changes;
+  }
+}
+
+// ---------- accounts ----------
+
+export interface UserRecord {
+  id: string;
+  email: string;
+  name?: string;
+  image?: string;
+  /** "scrypt$salt$hash", or undefined for provider-only accounts. */
+  passwordHash?: string;
+  createdAt: number;
+}
+
+interface UserRow {
+  id: string;
+  email: string;
+  name: string | null;
+  image: string | null;
+  password_hash: string | null;
+  created_at: number;
+}
+
+const toUser = (r: UserRow): UserRecord => ({
+  id: r.id,
+  email: r.email,
+  ...(r.name ? { name: r.name } : {}),
+  ...(r.image ? { image: r.image } : {}),
+  ...(r.password_hash ? { passwordHash: r.password_hash } : {}),
+  createdAt: r.created_at,
+});
+
+export class UserRepo {
+  constructor(private db: DB) {}
+
+  insert(u: UserRecord): UserRecord {
+    this.db
+      .prepare("INSERT INTO users (id, email, name, image, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(u.id, u.email, u.name ?? null, u.image ?? null, u.passwordHash ?? null, u.createdAt);
+    return u;
+  }
+
+  byEmail(email: string): UserRecord | undefined {
+    const r = this.db.prepare("SELECT * FROM users WHERE email = ?").get(email) as UserRow | undefined;
+    return r && toUser(r);
+  }
+
+  get(id: string): UserRecord | undefined {
+    const r = this.db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow | undefined;
+    return r && toUser(r);
+  }
+
+  /** Fill in a name, avatar, or password the account does not have yet. */
+  update(id: string, f: { name?: string; image?: string; passwordHash?: string }): void {
+    this.db
+      .prepare("UPDATE users SET name = COALESCE(?, name), image = COALESCE(?, image), password_hash = COALESCE(?, password_hash) WHERE id = ?")
+      .run(f.name ?? null, f.image ?? null, f.passwordHash ?? null, id);
+  }
+}
+
+export interface ChatRecord {
+  id: string;
+  data: unknown;
+  updatedAt: number;
+}
+
+export class ChatRepo {
+  constructor(private db: DB) {}
+
+  list(userId: string): ChatRecord[] {
+    const rows = this.db.prepare("SELECT id, data, updated_at FROM chats WHERE user_id = ? ORDER BY updated_at DESC").all(userId) as {
+      id: string;
+      data: string;
+      updated_at: number;
+    }[];
+    return rows.map((r) => ({ id: r.id, data: JSON.parse(r.data) as unknown, updatedAt: r.updated_at }));
+  }
+
+  put(userId: string, id: string, data: unknown, updatedAt: number): void {
+    this.db
+      .prepare("INSERT INTO chats (user_id, id, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at")
+      .run(userId, id, JSON.stringify(data), updatedAt);
+  }
+
+  delete(userId: string, id: string): boolean {
+    return this.db.prepare("DELETE FROM chats WHERE user_id = ? AND id = ?").run(userId, id).changes > 0;
+  }
+
+  count(userId: string): number {
+    return (this.db.prepare("SELECT COUNT(*) AS n FROM chats WHERE user_id = ?").get(userId) as { n: number }).n;
   }
 }
 
@@ -632,6 +725,8 @@ export interface Repositories {
   artifacts: ArtifactRepo;
   memories: MemoryRepo;
   metrics: MetricsRepo;
+  users: UserRepo;
+  chats: ChatRepo;
 }
 
 export function createRepositories(path = ":memory:"): Repositories {
@@ -645,5 +740,7 @@ export function createRepositories(path = ":memory:"): Repositories {
     artifacts: new ArtifactRepo(db),
     memories: new MemoryRepo(db),
     metrics: new MetricsRepo(db),
+    users: new UserRepo(db),
+    chats: new ChatRepo(db),
   };
 }

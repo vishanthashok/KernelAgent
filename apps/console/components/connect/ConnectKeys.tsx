@@ -89,7 +89,7 @@ export function ConnectKeys({ user }: { user?: { name?: string; email?: string; 
         <section className="card mt-10 p-5">
           <div className="label-caps">Where your key goes</div>
           <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-term-dim">
-            <li>It is saved in this browser&apos;s local storage. It is never tied to your sign-in.</li>
+            <li>It is saved in this browser&apos;s local storage. It is never saved to your account.</li>
             <li>Each job sends it to the API in a request header. The API holds it in memory until the job ends, then drops it.</li>
             <li>It never reaches the job spec, the database, or the event log that streams to the console. A test checks this.</li>
             <li>Remove it here any time. Revoke it at your provider to be sure.</li>

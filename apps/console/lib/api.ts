@@ -1,5 +1,7 @@
 // Thin client for the KernelAgent control API.
 import { getUserKey, modelProvider, type KeyProvider } from "./userKey";
+import { userToken } from "./userToken";
+import type { Chat } from "./chats";
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
 const TOKEN = process.env.NEXT_PUBLIC_KERNEL_DEV_TOKEN;
 
@@ -20,6 +22,7 @@ const keyHeader = (provider: KeyProvider | undefined): Record<string, string> =>
 async function call<T>(path: string, init: RequestInit = {}, keyFor?: KeyProvider): Promise<T> {
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
+  const token = await userToken();
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
@@ -29,6 +32,7 @@ async function call<T>(path: string, init: RequestInit = {}, keyFor?: KeyProvide
         ...(init.body ? { "content-type": "application/json" } : {}),
         ...(TOKEN ? { authorization: `Bearer ${TOKEN}` } : {}),
         ...keyHeader(keyFor),
+        ...(token ? { "x-user-token": token } : {}),
         ...init.headers,
       },
     });
@@ -103,7 +107,12 @@ export interface MemoryEntry {
 export const api = {
   metrics: (range: string) => call<import("./metrics").Metrics>(`/metrics?range=${encodeURIComponent(range)}`),
   memory: (scope: string) => call<{ scope: string; count: number; entries: MemoryEntry[] }>(`/memory?scope=${encodeURIComponent(scope)}`),
-  deleteMemory: (id: number) => call<{ deleted: number }>(`/memory/${id}`, { method: "DELETE" }),
+  deleteMemory: (id: number, scope: string) => call<{ deleted: number }>(`/memory/${id}?scope=${encodeURIComponent(scope)}`, { method: "DELETE" }),
+  /** The signed-in user's saved chats. */
+  chats: () => call<{ chats: Chat[] }>("/chats"),
+  saveChat: (chat: Chat) => call<{ saved: string }>(`/chats/${encodeURIComponent(chat.id)}`, { method: "PUT", body: JSON.stringify(chat) }),
+  /** Deletes the chat and its memory. */
+  deleteChat: (id: string) => call<{ deleted: string }>(`/chats/${encodeURIComponent(id)}`, { method: "DELETE" }),
   clearMemory: (scope: string) => call<{ cleared: number }>(`/memory?scope=${encodeURIComponent(scope)}`, { method: "DELETE" }),
   stats: () => call<Stats>("/stats"),
   /** Without a provider: what the server offers on its own keys. With one: what this browser's key for it can run. */

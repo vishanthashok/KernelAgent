@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
   DEFAULT_OPTIONS,
+  clearLocalChats,
   loadChats,
+  normalizeChats,
   loadLastModel,
   newId,
   saveChats,
@@ -17,6 +19,7 @@ import {
 import { buildCapabilities } from "@/lib/permissions";
 import { useKernel } from "@/lib/useKernel";
 import { needsUserKey, resolveModel, useModels } from "@/lib/useModels";
+import { userToken } from "@/lib/userToken";
 import { AssistantTurn } from "./AssistantTurn";
 import { ChatSidebar } from "./ChatSidebar";
 import { Composer } from "./Composer";
@@ -42,6 +45,11 @@ export function ChatApp() {
   const [draftOptions, setDraftOptions] = useState<ChatOptions>(DEFAULT_OPTIONS);
   const [sidebar, setSidebar] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  /** Signed in to an account: chats live on the API, not in this browser. */
+  const [account, setAccount] = useState(false);
+  const [syncError, setSyncError] = useState<string>();
+  /** The JSON last saved for each chat, so only changed chats are sent. */
+  const savedJson = useRef(new Map<string, string>());
   const [statsOpen, setStatsOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -55,16 +63,50 @@ export function ChatApp() {
     setStatsOpen(pref ? pref === "open" : window.matchMedia("(min-width: 1280px)").matches);
     const last = loadLastModel();
     if (last) setDraftOptions((o) => ({ ...o, model: last }));
-    const c = loadChats();
-    setChats(c);
-    const latest = [...c].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-    if (latest) setActiveId(latest.id);
-    setLoaded(true);
+    const show = (c: Chat[]) => {
+      setChats(c);
+      const latest = [...c].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+      if (latest) setActiveId(latest.id);
+      setLoaded(true);
+    };
+    void (async () => {
+      if (!(await userToken())) return show(loadChats());
+      try {
+        const remote = normalizeChats((await api.chats()).chats);
+        for (const c of remote) savedJson.current.set(c.id, JSON.stringify(c));
+        // Chats this browser made before signing in move into the account.
+        const local = loadChats().filter((c) => !remote.some((r) => r.id === c.id));
+        await Promise.all(local.map((c) => api.saveChat(c).then(() => savedJson.current.set(c.id, JSON.stringify(c)))));
+        clearLocalChats();
+        setAccount(true);
+        show([...remote, ...local]);
+      } catch (err) {
+        setSyncError(`Could not load your saved chats: ${(err as Error).message}`);
+        show(loadChats());
+      }
+    })();
   }, []);
 
+  // Save changes: to the account when signed in, else to this browser.
   useEffect(() => {
-    if (loaded) saveChats(chats);
-  }, [chats, loaded]);
+    if (!loaded) return;
+    if (!account) return saveChats(chats);
+    const timer = setTimeout(() => {
+      for (const c of chats) {
+        const json = JSON.stringify(c);
+        if (savedJson.current.get(c.id) === json) continue;
+        savedJson.current.set(c.id, json);
+        api.saveChat(c).then(
+          () => setSyncError(undefined),
+          (err: Error) => {
+            savedJson.current.delete(c.id);
+            setSyncError(`Could not save to your account: ${err.message}`);
+          },
+        );
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [chats, loaded, account]);
 
   const active = chats.find((c) => c.id === activeId);
   const options = active?.options ?? draftOptions;
@@ -155,7 +197,10 @@ export function ChatApp() {
 
   const remove = (id: string) => {
     // The chat's memory on the API goes with it.
-    void api.clearMemory(id).catch(() => undefined);
+    if (account) {
+      savedJson.current.delete(id);
+      void api.deleteChat(id).catch(() => undefined);
+    } else void api.clearMemory(id).catch(() => undefined);
     setChats((cs) => cs.filter((c) => c.id !== id));
     if (id === activeId) setActiveId(undefined);
   };
@@ -238,6 +283,7 @@ export function ChatApp() {
 
         <div className="mx-auto w-full max-w-3xl px-4">
           <ApiBanner connected={k.connected} error={k.apiError} className="mb-2" />
+          {syncError && <div className="mb-2 rounded border border-warn/40 px-3 py-2 text-xs text-warn">{syncError}</div>}
         </div>
         <Composer options={options} onOptions={setOptions} onSend={(t) => void send(t)} onStop={stop} running={running} stats={k.stats} models={models} keyState={modelState} model={currentModel} />
       </main>

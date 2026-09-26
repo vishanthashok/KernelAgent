@@ -90,3 +90,23 @@ CREATE TABLE IF NOT EXISTS memories (
   created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS memories_scope ON memories(scope, id);
+
+-- Accounts. Created on first GitHub/Google sign-in or by email sign-up. password_hash is
+-- null for accounts that only sign in with a provider. API keys are never stored here.
+CREATE TABLE IF NOT EXISTS users (
+  id             TEXT PRIMARY KEY,
+  email          TEXT NOT NULL UNIQUE,
+  name           TEXT,
+  image          TEXT,
+  password_hash  TEXT,
+  created_at     INTEGER NOT NULL
+);
+
+-- A user's chats, saved so they follow the user across devices. data is the console's chat JSON.
+CREATE TABLE IF NOT EXISTS chats (
+  user_id     TEXT NOT NULL,
+  id          TEXT NOT NULL,
+  data        TEXT NOT NULL,
+  updated_at  INTEGER NOT NULL,
+  PRIMARY KEY (user_id, id)
+);

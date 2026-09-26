@@ -1,14 +1,20 @@
 // Fastify control API + live event stream. Routes per the brief, Section 13.
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { JobSpecError, type Kernel, type KernelEvent } from "@kernelagent/kernel";
 import { buildMetrics, isRange, RANGES } from "./metrics.ts";
+import { registerAccounts, userScope, type Accounts } from "./accounts.ts";
 
 export interface ServerOptions {
   logger?: boolean;
   /** Optional shared dev token. When set, every request must send `Authorization: Bearer <token>`. */
   devToken?: string;
+  /**
+   * Turns on accounts. The console holds the same secret: it calls /accounts with it and
+   * signs user tokens with it. Jobs and memory then need a signed-in user.
+   */
+  accountsSecret?: string;
 }
 
 const num = (v: unknown, d: number) => {
@@ -21,7 +27,7 @@ export const USER_KEY_HEADER = "x-provider-key";
 
 export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: opts.logger ?? false });
-  await app.register(cors, { origin: true });
+  await app.register(cors, { origin: true, methods: ["GET", "HEAD", "POST", "PUT", "DELETE"] });
   await app.register(websocket);
 
   if (opts.devToken) {
@@ -33,6 +39,8 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
       if (!ok) return reply.code(401).send({ error: "unauthorized" });
     });
   }
+
+  const accounts: Accounts | undefined = opts.accountsSecret ? registerAccounts(app, kernel, opts.accountsSecret) : undefined;
 
   /** A process row enriched with live fields the table does not store. */
   const liveProcess = (pid: string) => {
@@ -92,6 +100,14 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
   });
 
   app.post("/jobs", async (req, reply) => {
+    // With accounts on, jobs need a signed-in user, and chat memory is kept per user.
+    let body = req.body;
+    if (accounts) {
+      const uid = accounts.requireUser(req, reply);
+      if (!uid) return;
+      const scope = (body as { memoryScope?: unknown } | null)?.memoryScope;
+      if (typeof scope === "string") body = { ...(body as object), memoryScope: userScope(uid, scope) };
+    }
     const apiKey = userKey(req);
     if (kernel.llm.requiresUserKey && !apiKey) {
       return reply.code(400).send({ error: "this server runs on your own API key. Add a Claude or OpenAI key on the Connect page." });
@@ -109,7 +125,7 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
       }
     }
     try {
-      return reply.code(201).send(kernel.submitJob(req.body, apiKey ? { apiKey } : {}));
+      return reply.code(201).send(kernel.submitJob(body, apiKey ? { apiKey } : {}));
     } catch (err) {
       if (err instanceof JobSpecError) return reply.code(400).send({ error: err.message });
       throw err;
@@ -211,21 +227,44 @@ export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Pro
 
   const SCOPE = /^[A-Za-z0-9_-]{1,100}$/;
 
+  /**
+   * The stored scope for a request's scope. With accounts on, it is prefixed with the
+   * signed-in user, so a user only ever reaches their own memory. Null after a 401.
+   */
+  const memoryScope = (req: FastifyRequest, reply: FastifyReply, scope: string): string | null => {
+    if (!accounts) return scope;
+    const uid = accounts.requireUser(req, reply);
+    return uid ? userScope(uid, scope) : null;
+  };
+
   app.get<{ Querystring: { scope?: string; limit?: string } }>("/memory", async (req, reply) => {
-    const scope = req.query.scope ?? "";
-    if (!SCOPE.test(scope)) return reply.code(400).send({ error: "scope is required: 1-100 letters, digits, _ or -" });
+    const asked = req.query.scope ?? "";
+    if (!SCOPE.test(asked)) return reply.code(400).send({ error: "scope is required: 1-100 letters, digits, _ or -" });
+    const scope = memoryScope(req, reply, asked);
+    if (scope === null) return;
     const limit = Math.min(500, Math.max(1, Number(req.query.limit ?? 100) || 100));
-    return { scope, count: kernel.repos.memories.count(scope), entries: kernel.repos.memories.recent(scope, limit) };
+    return { scope: asked, count: kernel.repos.memories.count(scope), entries: kernel.repos.memories.recent(scope, limit).map((e) => ({ ...e, scope: asked })) };
   });
 
-  app.delete<{ Params: { id: string } }>("/memory/:id", async (req, reply) => {
-    if (!kernel.repos.memories.delete(Number(req.params.id))) return reply.code(404).send({ error: "no such memory entry" });
+  // With accounts on, ?scope= is required and the entry must be in the user's own scope.
+  app.delete<{ Params: { id: string }; Querystring: { scope?: string } }>("/memory/:id", async (req, reply) => {
+    let scope: string | undefined;
+    if (accounts) {
+      const asked = req.query.scope ?? "";
+      if (!SCOPE.test(asked)) return reply.code(400).send({ error: "scope is required" });
+      const s = memoryScope(req, reply, asked);
+      if (s === null) return;
+      scope = s;
+    }
+    if (!kernel.repos.memories.delete(Number(req.params.id), scope)) return reply.code(404).send({ error: "no such memory entry" });
     return { deleted: Number(req.params.id) };
   });
 
   app.delete<{ Querystring: { scope?: string } }>("/memory", async (req, reply) => {
-    const scope = req.query.scope ?? "";
-    if (!SCOPE.test(scope)) return reply.code(400).send({ error: "scope is required" });
+    const asked = req.query.scope ?? "";
+    if (!SCOPE.test(asked)) return reply.code(400).send({ error: "scope is required" });
+    const scope = memoryScope(req, reply, asked);
+    if (scope === null) return;
     return { cleared: kernel.repos.memories.clear(scope) };
   });
 

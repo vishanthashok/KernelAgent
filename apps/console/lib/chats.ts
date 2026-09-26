@@ -91,19 +91,33 @@ export function onLastModelChange(fn: () => void): () => void {
 
 export const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
+/** Fill in options that older saved chats lack. */
+export function normalizeChats(chats: Chat[]): Chat[] {
+  // Chats saved before memory existed had a "history" flag instead.
+  return chats.map((c) => {
+    const o = (c.options ?? {}) as ChatOptions & { history?: boolean };
+    const { history, ...rest } = o;
+    return { ...c, options: { ...DEFAULT_OPTIONS, ...rest, memory: o.memory ?? history ?? true } };
+  });
+}
+
+/** Chats saved in this browser (used when nobody is signed in to an account). */
 export function loadChats(): Chat[] {
   try {
     const raw = localStorage.getItem(KEY);
     const chats = raw ? (JSON.parse(raw) as Chat[]) : [];
-    if (!Array.isArray(chats)) return [];
-    // Chats saved before memory existed had a "history" flag instead.
-    return chats.map((c) => {
-      const o = c.options as ChatOptions & { history?: boolean };
-      const { history, ...rest } = o;
-      return { ...c, options: { ...DEFAULT_OPTIONS, ...rest, memory: o.memory ?? history ?? true } };
-    });
+    return Array.isArray(chats) ? normalizeChats(chats) : [];
   } catch {
     return [];
+  }
+}
+
+/** Forget this browser's chats, once they are saved to an account. */
+export function clearLocalChats(): void {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    // storage blocked
   }
 }
 
