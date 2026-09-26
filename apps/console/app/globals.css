@@ -293,18 +293,37 @@ textarea:focus {
   border-color: var(--line);
 }
 
-/* Logo: the process orbit turns slowly while hovered. */
-.logo-orbit {
-  transform-box: view-box;
-  transform-origin: 50% 50%;
+/* Logo: on hover the K's arms redraw from the junction and the process nodes pop in. */
+.logo-node {
+  transform-box: fill-box;
+  transform-origin: center;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .logo-link:hover .logo-orbit {
-    animation: logo-orbit 6s linear infinite;
+  .logo-link:hover .logo-arm {
+    stroke-dasharray: 1 1;
+    animation: logo-arm 0.45s ease-out;
+  }
+  .logo-link:hover .logo-node {
+    animation: logo-node 0.7s ease-out;
   }
 }
-@keyframes logo-orbit {
+@keyframes logo-arm {
+  from {
+    stroke-dashoffset: 1;
+  }
   to {
-    transform: rotate(360deg);
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes logo-node {
+  0%,
+  55% {
+    transform: scale(0);
+  }
+  80% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
   }
 }
