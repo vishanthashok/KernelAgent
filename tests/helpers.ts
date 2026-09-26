@@ -1,14 +1,14 @@
 import { createRepositories } from "@kernelagent/db";
 import { Kernel, type KernelConfig } from "@kernelagent/kernel";
-import { MockLLM, type MockLLMOptions } from "@kernelagent/llm";
+import { MockLLM, type MockLLMOptions, type ModelClient } from "@kernelagent/llm";
 import { Worker } from "@kernelagent/runtime";
 import { LocalSandbox } from "@kernelagent/sandbox";
 
-export function makeKernel(opts: { mock?: MockLLMOptions; config?: Partial<KernelConfig>; now?: () => number } = {}) {
+export function makeKernel(opts: { mock?: MockLLMOptions; config?: Partial<KernelConfig>; now?: () => number; llm?: ModelClient } = {}) {
   const llm = new MockLLM(opts.mock);
   const sandbox = new LocalSandbox();
   const kernel = new Kernel({
-    llm,
+    llm: opts.llm ?? llm,
     sandbox,
     repos: createRepositories(":memory:"),
     config: { tickMs: 10, maxConcurrency: 4, ...opts.config },

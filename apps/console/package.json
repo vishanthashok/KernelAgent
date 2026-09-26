@@ -12,6 +12,7 @@
   "dependencies": {
     "@kernelagent/kernel": "workspace:*",
     "next": "^16.0.0",
+    "next-auth": "5.0.0-beta.32",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",

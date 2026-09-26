@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useTheme } from "@/lib/theme";
 import { Logo } from "./Logo";
+import { UserMenu } from "./UserMenu";
 
 export type Section = "chat" | "console" | "dashboard";
 
@@ -34,7 +35,7 @@ function Icon({ name, className = "h-5 w-5" }: { name: keyof typeof I; className
 }
 
 const NAV: { key: Section; href: string; label: string }[] = [
-  { key: "chat", href: "/", label: "Chat" },
+  { key: "chat", href: "/chat", label: "Chat" },
   { key: "console", href: "/console", label: "Console" },
   { key: "dashboard", href: "/dashboard", label: "Metrics" },
 ];
@@ -79,6 +80,7 @@ export function AppShell({ active, children, status }: { active: Section; childr
           ))}
         </nav>
         <div className="flex w-full flex-col items-center gap-2 px-1.5">
+          <UserMenu variant="rail" />
           <ThemeButton />
           {status !== undefined && (
             <span className="flex items-center gap-1 text-[10px] text-nav-fg" title={status ? "API connected" : "API unreachable"}>
@@ -107,6 +109,7 @@ export function AppShell({ active, children, status }: { active: Section; childr
         <span className="ml-auto" />
         {status !== undefined && <span className={`mr-1 h-2 w-2 rounded-full ${status ? "bg-[var(--status-good)]" : "bg-[var(--status-critical)]"}`} />}
         <ThemeButton compact />
+        <UserMenu />
       </header>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>

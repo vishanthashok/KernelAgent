@@ -133,7 +133,7 @@ export function ChatApp() {
           capabilities: [...buildCapabilities(opts.perms, opts.approval), ...(opts.memory ? [{ type: "MEMORY" }] : [])],
           tokenBudget: opts.tokenBudget,
         },
-      });
+      }, model ?? models?.default ?? k.stats?.model);
       updateTurn(chatId, turn.id, { jobId: res.jobId, rootPid: Object.values(res.pids)[0]!, model: model ?? models?.default ?? k.stats?.model });
     } catch (err) {
       updateTurn(chatId, turn.id, { error: (err as Error).message });

@@ -65,6 +65,8 @@ export interface CompletionResponse {
 export interface ModelInfo {
   id: string;
   name: string;
+  /** Which provider runs it. Set by clients that serve more than one provider's models. */
+  provider?: string;
 }
 
 export interface CompleteOptions {
@@ -88,8 +90,15 @@ export interface ModelClient {
   readonly acceptsUserKeys: boolean;
   /** Whether jobs must bring a key because the server has none. */
   readonly requiresUserKey: boolean;
-  /** Models this client can run. With apiKey, the models that key can use. */
-  listModels(opts?: { apiKey?: string }): Promise<ModelInfo[]>;
+  /**
+   * Models this client can run. With apiKey, the models that key can use. provider narrows
+   * the list on a client that serves several providers.
+   */
+  listModels(opts?: { apiKey?: string; provider?: string }): Promise<ModelInfo[]>;
+  /** The provider that runs a model. Only multi-provider clients define it. */
+  providerFor?(model: string): string;
+  /** The providers a multi-provider client serves, and whether each needs the user's key. */
+  providers?(): { id: string; requiresUserKey: boolean }[];
 }
 
 /** Rough token estimate: 4 characters per token. Used for rate-limit pre-checks and the mock. */
@@ -100,3 +109,4 @@ export function estimateTokens(value: unknown): number {
 
 export { MockLLM, type MockScript, type MockStep, type MockStepValue, type MockContext, type MockLLMOptions } from "./mock.ts";
 export { createModelClient } from "./factory.ts";
+export { RoutingClient, providerForKey } from "./router.ts";

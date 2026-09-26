@@ -413,7 +413,10 @@ export class Kernel {
     if (!apiKey && this.userKeyJobs.has(proc.jobId)) {
       throw new Error("this job's API key is no longer held by the server. Submit the job again.");
     }
+    // One limiter per client, since the scheduler reserves slots on it before a model is known.
     const limiter = this.resources.limiter(this.llm.provider);
+    // A multi-provider client reports which provider runs this model.
+    const provider = this.llm.providerFor?.(model) ?? this.llm.provider;
     const estimate = estimateTokens(req.system) + estimateTokens(req.messages) + estimateTokens(req.tools);
     await limiter.acquire(estimate, h.signal, h.pid);
     this.assertLive(h);
@@ -431,7 +434,7 @@ export class Kernel {
     };
     const res = await withSpan(
       "llm.call",
-      { "kernel.pid": proc.pid, "llm.provider": this.llm.provider, "llm.model": model },
+      { "kernel.pid": proc.pid, "llm.provider": provider, "llm.model": model },
       async (span) => {
         const effort = this.effortFor(proc);
         const r = await this.llm.complete(fullReq, { signal: h.signal, model, ...(apiKey ? { apiKey } : {}), ...(effort ? { effort } : {}) });
@@ -440,7 +443,7 @@ export class Kernel {
       },
     );
     this.assertLive(h);
-    const attrs = { provider: this.llm.provider, model, role: proc.role };
+    const attrs = { provider, model, role: proc.role };
     const cache = { read: res.cacheReadTokens ?? 0, write: res.cacheWriteTokens ?? 0 };
     const cost = costUsd(model, res.inputTokens, res.outputTokens, cache);
     this.metrics.tokens(res.inputTokens + res.outputTokens, attrs);
@@ -448,7 +451,7 @@ export class Kernel {
     limiter.reconcile(estimate, res.inputTokens + res.outputTokens);
 
     this.bus.emit("LLM_CALL", proc.jobId, proc.pid, {
-      provider: this.llm.provider,
+      provider,
       model,
       request: { system: req.system, messages: req.messages, tools: req.tools },
       response: { content: res.content, raw: res.raw },

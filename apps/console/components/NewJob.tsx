@@ -39,7 +39,8 @@ export function NewJob({
     setError(undefined);
     try {
       const withModel = model && spec && typeof spec === "object" && !("model" in spec) ? { ...spec, model } : spec;
-      onSubmitted(await api.submitJob(withModel));
+      const specModel = withModel && typeof withModel === "object" && "model" in withModel ? String(withModel.model) : undefined;
+      onSubmitted(await api.submitJob(withModel, specModel));
     } catch (err) {
       setError((err as Error).message);
     } finally {

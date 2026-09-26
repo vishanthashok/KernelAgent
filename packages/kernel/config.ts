@@ -20,6 +20,13 @@ export const PRICE_TABLE: Record<string, ModelPrice> = {
   "claude-sonnet-5": { inputPerMTok: 2, outputPerMTok: 10 },
   "claude-sonnet-4-6": { inputPerMTok: 3, outputPerMTok: 15 },
   "claude-haiku-4-5": { inputPerMTok: 1, outputPerMTok: 5 },
+  "gpt-5": { inputPerMTok: 1.25, outputPerMTok: 10 },
+  "gpt-5-mini": { inputPerMTok: 0.25, outputPerMTok: 2 },
+  "gpt-5-nano": { inputPerMTok: 0.05, outputPerMTok: 0.4 },
+  "gpt-4.1": { inputPerMTok: 2, outputPerMTok: 8 },
+  "gpt-4.1-mini": { inputPerMTok: 0.4, outputPerMTok: 1.6 },
+  "gpt-4o": { inputPerMTok: 2.5, outputPerMTok: 10 },
+  "gpt-4o-mini": { inputPerMTok: 0.15, outputPerMTok: 0.6 },
   default: { inputPerMTok: 3, outputPerMTok: 15 },
 };
 
@@ -28,8 +35,8 @@ export const CACHE_READ_MULTIPLIER = 0.1;
 export const CACHE_WRITE_MULTIPLIER = 1.25;
 
 export function priceFor(model: string): ModelPrice {
-  // Dated snapshots (claude-haiku-4-5-20251001) price like their base id.
-  return PRICE_TABLE[model] ?? PRICE_TABLE[model.replace(/-\d{8}$/, "")] ?? PRICE_TABLE.default!;
+  // Dated snapshots (claude-haiku-4-5-20251001, gpt-4o-2024-08-06) price like their base id.
+  return PRICE_TABLE[model] ?? PRICE_TABLE[model.replace(/-\d{8}$/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "")] ?? PRICE_TABLE.default!;
 }
 
 export interface CacheUsage {

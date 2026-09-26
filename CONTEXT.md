@@ -25,7 +25,7 @@ Verify it yourself:
 ```bash
 pnpm install
 pnpm typecheck            # root tsc + console tsc
-pnpm test                 # 95 pass, 2 skipped (live providers, need keys)
+pnpm test                 # 124 pass, 2 skipped (live providers, need keys)
 pnpm example:coding       # in-process run, prints the event log
 pnpm example:research
 pnpm demo                 # API :4000 + console :3000, submits 3 jobs
@@ -99,11 +99,20 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
    - The default OTel console exporter is noisy in the API terminal.
    - The console has no component tests.
    - A kernel restart fails in-flight processes instead of resuming them.
-5. **Roadmap** (from the README): `FETCH` syscall gated by `NET`, sandbox filesystem snapshots at checkpoints, streaming model calls, resume after restart, per-job concurrency quotas, richer approval policies.
+5. **Connectors** (planned, see `docs/decisions.md`): an `MCP` syscall behind a `CONNECTOR` capability, OAuth per connector on `/connect`.
+6. **OpenAI live check.** Run a job with a real OpenAI key. The adapter is only unit-tested.
+7. **Roadmap** (from the README): `FETCH` syscall gated by `NET`, sandbox filesystem snapshots at checkpoints, streaming model calls, resume after restart, per-job concurrency quotas, richer approval policies.
+
+## Landing, sign-in, and keys
+
+- `/` is the public landing page (`components/landing/Landing.tsx`). `/login` has GitHub and Google buttons (server actions in `app/actions.ts`). `/connect` (`components/connect/ConnectKeys.tsx`) adds and checks a Claude and an OpenAI key.
+- `apps/console/auth.ts` configures Auth.js (JWT, no DB). `authEnabled` is false unless `AUTH_SECRET` and a provider's id and secret are set. Without them every page is open and the auth route returns 404.
+- `proxy.ts` gates `/chat`, `/console`, `/dashboard`, `/connect`. `components/shell/UserMenu.tsx` shows the avatar, "API keys", and "Sign out".
+- Keys: `lib/userKey.ts` stores one per provider and migrates the old single key. `api.submitJob(spec, model)` sends the key for the model's provider. `useModels` merges each provider's models from the user's key or the server.
 
 ## Chat
 
-- `/` is the chat (`apps/console/components/chat/*`), `/console` is the monitor (`components/Console.tsx`).
+- `/chat` is the chat (`apps/console/components/chat/*`), `/console` is the monitor (`components/Console.tsx`).
 - Each user message is one job with one process. The goal is the message alone. With "Chat memory" on, the spec sets `memoryScope` to the chat id and the process gets the `MEMORY` capability, so context comes from the chat's memory (see below), not a resent transcript. Each turn gets a fresh sandbox, so earlier files are not available to later turns.
 - Advanced options: model, effort (unset means the model default), "Sub-agents at low effort" (sets `subagentEffort`), role, token budget, permissions, approval, chat memory.
 - Conversations live in the browser's `localStorage` (`kernelagent.chats`), not on the server.
@@ -111,10 +120,12 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 
 ## Models and user keys
 
+- Providers: `packages/llm/openai.ts` (Chat Completions) and `packages/llm/router.ts` (`RoutingClient`, picks by model id, `providerForKey` by key prefix). `LLM_PROVIDER=multi` builds the router. `GET /models?provider=` lists one provider, and the response has `providers` with `requiresUserKey` for each.
+
 - `GET /models` lists what the provider offers (Anthropic Models API, cached 10 min, built-in fallback). A job spec's `model` applies to every process in the job, spawned children included. `Kernel.modelFor(jobId)` resolves it.
 - A user key arrives as the `x-provider-key` header. `Kernel.submitJob(spec, { apiKey })` keeps it in memory only (`jobKeys`) and drops it when the job settles. It must never reach the spec, the DB, or an event: events stream to every console. `tests/api.test.ts` checks this.
 - A job that brought a key never falls back to the server key. A retry after the key is dropped fails and asks for a resubmit.
-- The console stores the key in localStorage (`kernelagent.providerKey`) and the last picked model in `kernelagent.model`.
+- The console stores keys in localStorage (`kernelagent.providerKey.anthropic`, `.openai`) and the last picked model in `kernelagent.model`.
 
 ## Design system
 

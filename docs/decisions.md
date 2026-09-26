@@ -105,7 +105,7 @@ Choices the brief left open, and deviations from it, with the reason for each.
 
 - **One message, one job.** The kernel has no conversation concept, so the chat maps each user message onto a new single-process job. Follow-ups carry the earlier turns inside the goal (last 8 turns, 12k characters). This keeps the kernel unchanged and makes every turn independently replayable. The cost is that each turn gets a fresh sandbox.
 - **Chats are stored in localStorage.** They are per browser and not synced. Job data itself stays in the server's event log, so a chat's answers and files reappear as long as the API still has those jobs.
-- **Routes.** `/` is the chat, `/console` is the monitor. Both use the same `useKernel()` stream.
+- **Routes.** `/` is the public landing page, `/chat` is the chat, `/console` is the monitor. Chat and console use the same `useKernel()` stream.
 
 ## Budgets that end with an answer
 
@@ -114,3 +114,17 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **Wrap-up.** With no rollover left, the loop adds a note to the next user turn asking for EXIT with the best answer so far. The reply that finishes a process (EXIT or plain text) is kept even if that call crossed the budget. Any other reply that crosses it still fails the process, as before.
 - **CHILD_EXIT.** When a process ends for good, the kernel sends its live parent a `{type: "CHILD_EXIT", pid, role, status, result | error + lastOutput}` message. A parent blocked on RECEIVE wakes instead of waiting on a dead child.
 - **RECEIVE deadlock release.** If every live process in a job is blocked on RECEIVE with an empty mailbox, nothing can ever arrive. The kernel wakes them all, and RECEIVE returns `{closed: true, reason}`. The check runs when a process blocks on RECEIVE and when any process ends.
+
+## Sign-in and providers
+
+- **Auth.js with JWT sessions, no database.** GitHub and Google sign-in (`apps/console/auth.ts`). No user table: nothing about a user is stored server-side. Auth turns on only when `AUTH_SECRET` and a provider's id and secret are set, so local runs and tests need nothing.
+- **The login gates the UI, not the API.** `proxy.ts` redirects signed-out visitors on `/chat`, `/console`, `/dashboard`, and `/connect` to `/login`. The API keeps its optional dev token. A visitor's API key, not the login, pays for model calls, so an ungated API call gains nothing without a key when `REQUIRE_USER_KEY=true`.
+- **No "connect your Claude.ai or ChatGPT account".** Neither provider offers OAuth that lets a third-party app run models on a consumer subscription. Visitors bring API keys, one per provider, stored in the browser (`kernelagent.providerKey.anthropic`, `.openai`).
+- **One ModelClient per provider, one RoutingClient over them.** `packages/llm/router.ts` picks the provider from the model id (`claude-*` vs `gpt-*`/`o*`) and reads a key's provider from its prefix (`sk-ant-` is Anthropic). The kernel still holds one `llm`. `providerFor(model)` labels `LLM_CALL` events, spans, and metrics with the real provider. The rate limiter stays keyed by the client, because the scheduler reserves slots before a model is known.
+- **A job runs on one provider.** Its key and its model must match. The router refuses a mismatch, and `POST /jobs` rejects a model the key's provider does not list.
+- **OpenAI through Chat Completions.** Function tools map one-to-one onto syscall tools. Tool results become `role: "tool"` messages. Provider-opaque blocks (Anthropic thinking) are dropped, which is safe because a job never switches provider. OpenAI caches prefixes itself and reports only cache reads.
+
+## Connectors (planned)
+
+- An `MCP` syscall gated by a new `CONNECTOR` capability, scoped by server name, so agents call tools on MCP servers (GitHub, Google Drive, Slack) under the same capability checks, approval gate, and event log as other syscalls.
+- Users connect a connector through its OAuth on `/connect`. Its token would follow the API-key rule: held in memory per job, never in a spec, the database, or an event.

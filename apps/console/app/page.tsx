@@ -1,5 +1,6 @@
-import { ChatApp } from "@/components/chat/ChatApp";
+import { authEnabled, currentUser } from "@/auth";
+import { Landing } from "@/components/landing/Landing";
 
-export default function Page() {
-  return <ChatApp />;
+export default async function Page() {
+  return <Landing user={await currentUser()} authEnabled={authEnabled} />;
 }
