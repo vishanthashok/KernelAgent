@@ -4,9 +4,9 @@ import { Logo } from "@/components/shell/Logo";
 /** Logo and name, linking home. Shared by the landing, login, and connect pages. */
 export function Brand() {
   return (
-    <Link href="/" className="flex items-center gap-2.5">
-      <Logo size={32} />
-      <span className="text-[15px] font-semibold">KernelAgent</span>
+    <Link href="/" className="brand flex items-center gap-2.5">
+      <Logo size={28} />
+      <span className="text-[15px] font-semibold tracking-tight">KernelAgent</span>
     </Link>
   );
 }

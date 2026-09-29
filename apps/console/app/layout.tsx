@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Newsreader } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
+// Display serif for the landing page's headings.
+const newsreader = Newsreader({ subsets: ["latin"], variable: "--font-newsreader", style: ["normal", "italic"] });
 
 const DESCRIPTION =
   "Run AI agents like OS processes: a scheduler, permission-checked syscalls, sandboxes, and a replayable event log. Bring your own Claude or OpenAI key.";
@@ -26,7 +28,7 @@ const THEME_SCRIPT = `try{if(localStorage.getItem("kernelagent.theme")==="light"
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" className={`${inter.variable} ${jetbrains.variable}`} suppressHydrationWarning>
+    <html lang="en" data-theme="dark" className={`${inter.variable} ${jetbrains.variable} ${newsreader.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>

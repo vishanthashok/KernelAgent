@@ -105,7 +105,7 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 
 ## Landing, sign-in, and keys
 
-- `/` is the public landing page (`components/landing/Landing.tsx`). `/login` has GitHub and Google buttons (server actions in `app/actions.ts`). `/connect` (`components/connect/ConnectKeys.tsx`) adds and checks a Claude and an OpenAI key.
+- `/` is the public landing page (`components/landing/Landing.tsx`). It is built from real material: screenshots in `public/landing/` (a mock research-pipeline run, retake them if the console changes), the hello-dag job file, the syscall table, and a trimmed `pnpm example:coding` log. Headings use the Newsreader serif (`font-serif`), and `--highlight` (amber) is its one accent. The logo (`components/shell/Logo.tsx`, `app/icon.svg`) is a prompt chevron with an amber cursor. `/login` has GitHub and Google buttons (server actions in `app/actions.ts`). `/connect` (`components/connect/ConnectKeys.tsx`) adds and checks a Claude and an OpenAI key.
 - `apps/console/auth.ts` configures Auth.js (JWT, no DB). `authEnabled` is false unless `AUTH_SECRET` and a provider's id and secret are set. Without them every page is open and the auth route returns 404.
 - `proxy.ts` gates `/chat`, `/console`, `/dashboard`, `/connect`. `components/shell/UserMenu.tsx` shows the avatar, "API keys", and "Sign out".
 - Keys: `lib/userKey.ts` stores one per provider and migrates the old single key. `api.submitJob(spec, model)` sends the key for the model's provider. `useModels` merges each provider's models from the user's key or the server.

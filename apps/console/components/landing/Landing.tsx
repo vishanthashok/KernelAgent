@@ -1,30 +1,61 @@
-// Public landing page: what KernelAgent is, how it works, and how to start with your own key.
+// Public landing page. Plain, specific, and built from the real product: a real screenshot,
+// a real job file, the real syscall table, and a real event log from the coding example.
+import Image from "next/image";
 import Link from "next/link";
 import { Brand, REPO_URL } from "./Brand";
 import { UserMenu } from "@/components/shell/UserMenu";
 
 type User = { name?: string; email?: string; image?: string };
 
-const STEPS = [
-  { n: "01", title: "Job", body: "You describe a task. It becomes a job: one or more agent processes, with dependencies between them." },
-  { n: "02", title: "Scheduler", body: "A priority queue with aging runs ready processes under a concurrency cap and a token rate limit." },
-  { n: "03", title: "Syscalls", body: "Agents act only through syscalls: read, write, exec, spawn, send. Each one is checked against the process's capabilities." },
-  { n: "04", title: "Sandbox", body: "Code and files run in an isolated sandbox per process. Risky commands can wait for your approval." },
-  { n: "05", title: "Event log", body: "Every state change, model call, and syscall is appended to a log. Replay it to rebuild any moment." },
+// examples/hello-dag.json
+const JOB = `{
+  "name": "hello-dag",
+  "processes": [
+    { "id": "plan", "role": "planner",
+      "goal": "Break the task into two parts", "priority": 10 },
+    { "id": "left", "role": "researcher",
+      "goal": "Research part one", "dependsOn": ["plan"] },
+    { "id": "right", "role": "researcher",
+      "goal": "Research part two", "dependsOn": ["plan"] },
+    { "id": "review", "role": "reviewer",
+      "goal": "Combine and review", "dependsOn": ["left", "right"] }
+  ]
+}`;
+
+// From README's syscall table and packages/kernel/syscall.ts.
+const SYSCALLS: [string, string, string][] = [
+  ["FS_READ", "FS_READ", "Read a file in the sandbox"],
+  ["FS_WRITE", "FS_WRITE", "Write a file in the sandbox"],
+  ["EXEC", "EXEC", "Run a shell command in the sandbox"],
+  ["SPAWN", "SPAWN", "Start a child, never with more rights than the parent"],
+  ["SEND", "SEND", "Put a message in another process's mailbox"],
+  ["RECEIVE", "RECEIVE", "Take a message, or block until one arrives"],
+  ["REMEMBER", "MEMORY", "Save a note to the chat's shared memory"],
+  ["RECALL", "MEMORY", "Search that memory"],
+  ["SLEEP", "none", "Yield for a while"],
+  ["CHECKPOINT", "none", "Snapshot the process so a retry can resume"],
+  ["EXIT", "none", "Finish with a result"],
 ];
 
-const SURFACES = [
-  { title: "Chat", body: "Ask for something. Watch each step the agent takes, the files it writes, and what it cost." },
-  { title: "Process console", body: "A live table like top, a task graph, IPC messages, sandboxes, and traces you can rewind." },
-  { title: "Metrics", body: "Tokens, cost, cache savings, and errors over time, split by model. Compare Claude and GPT on the same work." },
-  { title: "Your account", body: "Chats and agent memory are saved to your account, so your agents remember context on any device. Your API key stays in your browser." },
+// `pnpm example:coding`, trimmed. Timestamps and the model are from a mock run.
+const LOG: [string, string, string, string][] = [
+  ["3", "101", "STATE_CHANGE", "NEW -> READY (SUBMITTED)"],
+  ["5", "101", "STATE_CHANGE", "READY -> RUNNING (DISPATCH)"],
+  ["6", "101", "LLM_CALL", "mock-llm in=819 out=98"],
+  ["7", "101", "SYSCALL", "FS_WRITE  /primes.py                 ok"],
+  ["9", "101", "SYSCALL", "EXEC      python3 primes.py > output/ ok"],
+  ["11", "101", "CHECKPOINT", 'note="primes.py written and executed"'],
+  ["14", "101", "SYSCALL", "FS_READ   /output/primes.txt        ok"],
+  ["17", "101", "PROCESS_EXIT", 'result="2 3 5 7 11 13 17 19 23 29 31 37 41 43 47"'],
+  ["18", "101", "STATE_CHANGE", "RUNNING -> TERMINATED (EXIT)"],
+  ["19", "101", "ARTIFACT", "primes.py (223 B)"],
 ];
 
-const PROCS = [
-  { pid: "p-1", role: "planner", state: "TERMINATED", tone: "text-ok", tokens: "4.1k" },
-  { pid: "p-2", role: "researcher", state: "RUNNING", tone: "text-term-accent", tokens: "12.8k" },
-  { pid: "p-3", role: "coder", state: "BLOCKED", tone: "text-warn", tokens: "9.3k" },
-  { pid: "p-4", role: "reviewer", state: "READY", tone: "text-term-dim", tokens: "0" },
+const LIMITS = [
+  "The local sandbox is a temp folder, not a security boundary. Use the E2B sandbox if you need real isolation.",
+  "If the server restarts, running agents fail instead of resuming from their last checkpoint.",
+  "There is a NET permission but no syscall that uses it yet, so agents cannot fetch web pages.",
+  "Connecting tools like GitHub or Google Drive through MCP is planned, not built.",
 ];
 
 export function Landing({ user, authEnabled, accounts }: { user?: User | undefined; authEnabled: boolean; accounts: boolean }) {
@@ -32,218 +63,219 @@ export function Landing({ user, authEnabled, accounts }: { user?: User | undefin
     user || !authEnabled
       ? { href: "/connect", label: "Open the app" }
       : accounts
-        ? { href: "/signup", label: "Create a free account" }
-        : { href: "/login", label: "Sign in to try it" };
-  const showSignIn = !user && authEnabled && accounts;
+        ? { href: "/signup", label: "Try it with your own key" }
+        : { href: "/login", label: "Try it with your own key" };
+  const signIn = !user && authEnabled && accounts;
+
   return (
-    <div className="min-h-dvh">
-      <header className="sticky top-0 z-40 border-b border-term-line bg-term-panel/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3 md:px-6">
+    <div className="min-h-dvh bg-term-bg text-term-fg">
+      <header className="border-b border-term-line">
+        <div className="mx-auto flex max-w-[1080px] items-center gap-6 px-5 py-3.5">
           <Brand />
-          <nav className="ml-6 hidden items-center gap-5 text-sm text-term-dim md:flex">
-            <a href="#how" className="hover:text-term-fg">How it works</a>
-            <a href="#keys" className="hover:text-term-fg">Your API key</a>
-            <a href="#next" className="hover:text-term-fg">Roadmap</a>
-            <a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:text-term-fg">GitHub</a>
+          <nav className="ml-auto flex items-center gap-5 text-[13px] text-term-dim">
+            <a href="#how" className="hidden hover:text-term-fg sm:inline">
+              How it works
+            </a>
+            <a href={REPO_URL} target="_blank" rel="noreferrer" className="hidden hover:text-term-fg sm:inline">
+              Source
+            </a>
+            {signIn && (
+              <Link href="/login" className="hover:text-term-fg">
+                Sign in
+              </Link>
+            )}
+            {user && <UserMenu user={user} />}
           </nav>
-          <span className="ml-auto" />
-          {user ? <UserMenu user={user} /> : null}
-          {showSignIn && (
-            <Link href="/login" className="pill pill-ghost text-sm">
-              Sign in
-            </Link>
-          )}
-          <Link href={start.href} className="pill pill-light text-sm">
-            {start.label}
-          </Link>
         </div>
       </header>
 
-      <main>
+      <main className="mx-auto max-w-[1080px] px-5">
         {/* Hero */}
-        <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 md:grid-cols-[1.1fr_1fr] md:px-6 md:py-20">
-          <div>
-            <div className="label-caps">Open-source agent runtime</div>
-            <h1 className="mt-3 text-[34px] leading-[1.15] font-semibold tracking-tight md:text-[44px]">
-              Run AI agents like operating system processes.
-            </h1>
-            <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-term-dim">
-              KernelAgent splits a task into agent processes, schedules them, and lets them act only through permission-checked syscalls in a sandbox.
-              Every step is logged, so you can see exactly what your agents did, what it cost, and why.
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link href={start.href} className="pill pill-light px-5 py-2.5 text-sm">
-                {start.label} →
-              </Link>
-              <a href={REPO_URL} target="_blank" rel="noreferrer" className="pill pill-ghost px-5 py-2.5 text-sm">
-                View the code
-              </a>
-            </div>
-            <p className="mt-4 text-xs text-term-dim">Bring your own Claude or OpenAI API key. Nothing to install.</p>
-          </div>
-
-          {/* A still of the process table */}
-          <div className="card overflow-hidden">
-            <div className="flex items-center gap-2 border-b border-term-line px-4 py-2.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-[var(--status-critical)]" />
-              <span className="h-2.5 w-2.5 rounded-full bg-[var(--status-warning)]" />
-              <span className="h-2.5 w-2.5 rounded-full bg-[var(--status-good)]" />
-              <span className="ml-2 font-mono text-[11px] text-term-dim">kernelagent · job research-pipeline</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full font-mono text-[12px]">
-                <thead>
-                  <tr className="text-left text-term-dim">
-                    <th className="px-4 py-2 font-medium">PID</th>
-                    <th className="px-4 py-2 font-medium">ROLE</th>
-                    <th className="px-4 py-2 font-medium">STATE</th>
-                    <th className="px-4 py-2 text-right font-medium">TOKENS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {PROCS.map((p) => (
-                    <tr key={p.pid} className="border-t border-term-line">
-                      <td className="px-4 py-2">{p.pid}</td>
-                      <td className="px-4 py-2">{p.role}</td>
-                      <td className={`px-4 py-2 ${p.tone}`}>{p.state}</td>
-                      <td className="px-4 py-2 text-right">{p.tokens}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="border-t border-term-line bg-term-panel-2 px-4 py-3 font-mono text-[11px] leading-relaxed text-term-dim">
-              <div><span className="text-term-accent">#482</span> SYSCALL p-2 READ_FILE notes.md · allowed</div>
-              <div><span className="text-term-accent">#483</span> LLM_CALL p-2 claude-sonnet-5 · 88% cached</div>
-              <div><span className="text-term-accent">#484</span> SYSCALL p-3 EXEC pytest · <span className="text-warn">waiting for approval</span></div>
-            </div>
-          </div>
-        </section>
-
-        {/* How it works */}
-        <section id="how" className="border-y border-term-line bg-term-panel">
-          <div className="mx-auto max-w-6xl px-4 py-14 md:px-6">
-            <div className="label-caps">How it works</div>
-            <h2 className="mt-2 text-2xl font-semibold">An operating system for agents</h2>
-            <p className="mt-2 max-w-2xl text-sm text-term-dim">
-              The same ideas that keep programs from stepping on each other keep agents in check: processes, a scheduler, permissions, isolation, and an audit log.
-            </p>
-            <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {STEPS.map((s) => (
-                <li key={s.n} className="card p-4">
-                  <div className="font-mono text-xs text-term-accent">{s.n}</div>
-                  <div className="mt-1 font-semibold">{s.title}</div>
-                  <p className="mt-1.5 text-[13px] leading-relaxed text-term-dim">{s.body}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        {/* What you see */}
-        <section className="mx-auto max-w-6xl px-4 py-14 md:px-6">
-          <div className="label-caps">What you get</div>
-          <h2 className="mt-2 text-2xl font-semibold">See how your agents behave</h2>
-          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {SURFACES.map((s) => (
-              <div key={s.title} className="card p-5">
-                <div className="font-semibold">{s.title}</div>
-                <p className="mt-1.5 text-[13px] leading-relaxed text-term-dim">{s.body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Keys */}
-        <section id="keys" className="border-y border-term-line bg-term-panel">
-          <div className="mx-auto max-w-6xl px-4 py-14 md:px-6">
-            <div className="label-caps">Before you start</div>
-            <h2 className="mt-2 text-2xl font-semibold">Bring your own API key</h2>
-            <p className="mt-2 max-w-2xl text-sm text-term-dim">
-              Agents run on your key, so you pay your provider directly and nobody else&apos;s usage lands on your bill. Add one key or both.
-            </p>
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <KeyHow
-                title="Claude"
-                vendor="Anthropic"
-                href="https://console.anthropic.com/settings/keys"
-                steps={["Open the Anthropic Console and add billing.", "Create a key under Settings → API keys.", "Paste it on the Connect page after you sign in."]}
-              />
-              <KeyHow
-                title="ChatGPT models"
-                vendor="OpenAI"
-                href="https://platform.openai.com/api-keys"
-                steps={["Open the OpenAI platform and add billing.", "Create a secret key under API keys.", "Paste it on the Connect page after you sign in."]}
-              />
-            </div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className="rounded border border-term-line p-4 text-[13px] leading-relaxed text-term-dim">
-                <div className="font-semibold text-term-fg">Why not sign in with Claude.ai or ChatGPT?</div>
-                Consumer subscriptions do not include API access, and neither company lets other apps run models on your chat account. An API key is the supported way.
-              </div>
-              <div className="rounded border border-term-line p-4 text-[13px] leading-relaxed text-term-dim">
-                <div className="font-semibold text-term-fg">Where your key goes</div>
-                It stays in your browser. Each job sends it to the API, which holds it in memory until the job ends. It never reaches the database or the event log.
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Roadmap */}
-        <section id="next" className="mx-auto max-w-6xl px-4 py-14 md:px-6">
-          <div className="label-caps">Coming next</div>
-          <h2 className="mt-2 text-2xl font-semibold">Connectors</h2>
-          <p className="mt-2 max-w-2xl text-sm text-term-dim">
-            Connect GitHub, Google Drive, or Slack through MCP and let agents use them, under the same capability checks, approvals, and audit log as every
-            other syscall. Watch how Claude and GPT agents handle real tools side by side.
+        <section className="pt-16 pb-12 md:pt-24">
+          <p className="font-mono text-[12px] text-term-dim">open source · TypeScript · runs on Claude or GPT</p>
+          <h1 className="mt-5 max-w-[14ch] font-serif text-[44px] leading-[1.02] font-normal tracking-[-0.02em] md:text-[76px]">
+            Agents, run like <em className="text-highlight">processes.</em>
+          </h1>
+          <p className="mt-7 max-w-[36rem] text-[16px] leading-[1.65] text-term-dim">
+            KernelAgent is a small operating system for AI agents. You give it a task. It splits the work into processes, schedules them, lets them act only
+            through checked system calls, runs their code in a sandbox, and writes every step to a log you can replay.
           </p>
-          <div className="mt-8 flex flex-wrap gap-2 font-mono text-[11px] text-term-dim">
-            {["TypeScript", "Next.js", "Fastify", "SQLite", "Anthropic SDK", "OpenAI SDK", "E2B sandboxes", "OpenTelemetry", "Auth.js"].map((t) => (
-              <span key={t} className="rounded border border-term-line bg-term-panel px-2 py-1">
-                {t}
-              </span>
-            ))}
+          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+            <Link
+              href={start.href}
+              className="rounded-[5px] bg-term-fg px-4 py-2.5 text-[14px] font-medium text-term-bg transition-opacity hover:opacity-85"
+            >
+              {start.label}
+            </Link>
+            <a href={REPO_URL} target="_blank" rel="noreferrer" className="text-[14px] text-term-dim underline decoration-term-line underline-offset-4 hover:text-term-fg">
+              Read the source
+            </a>
           </div>
         </section>
 
-        <section className="border-t border-term-line bg-term-panel">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 py-10 md:px-6">
-            <div>
-              <div className="text-lg font-semibold">Try it with your own agents</div>
-              <div className="text-sm text-term-dim">{accounts ? "Create an account" : "Sign in"}, add a key, and give your agents a task.</div>
-            </div>
-            <Link href={start.href} className="pill pill-light ml-auto px-5 py-2.5 text-sm">
-              {start.label} →
-            </Link>
+        <Figure
+          src="/landing/console.jpg"
+          width={1440}
+          height={860}
+          alt="The KernelAgent console mid-run: a process table with a planner, two researchers, and a reviewer, next to the live event stream."
+          caption="A research job mid-run. The planner and both researchers are done. The reviewer is still working."
+          priority
+        />
+
+        {/* 01 */}
+        <Section id="how" n="01" label="the job">
+          <h2 className="font-serif text-[30px] leading-tight md:text-[38px]">A job is a small file.</h2>
+          <p className="mt-4 max-w-[34rem] text-[15px] leading-[1.7] text-term-dim">
+            Each entry is a process with a role, a goal, and what it waits on. The planner runs first. Both researchers start the moment it exits, side by
+            side. The reviewer waits for both. When you type into the chat, the same thing happens with one process.
+          </p>
+          <Code>{JOB}</Code>
+        </Section>
+
+        {/* 02 */}
+        <Section n="02" label="syscalls">
+          <h2 className="font-serif text-[30px] leading-tight md:text-[38px]">Nothing happens without a syscall.</h2>
+          <p className="mt-4 max-w-[34rem] text-[15px] leading-[1.7] text-term-dim">
+            The model never touches a file or a shell directly. It asks the kernel, and the kernel checks the request against the permissions that process was
+            given. In the run above, the reviewer tried to start a helper with more rights than it had. The call came back <span className="font-mono text-[13px] text-term-fg">DENIED</span>,
+            and the log says so.
+          </p>
+          <div className="mt-8 overflow-x-auto">
+            <table className="w-full min-w-[520px] border-collapse text-[14px]">
+              <thead>
+                <tr className="border-b border-term-line text-left font-mono text-[11px] text-term-dim">
+                  <th className="py-2 pr-6 font-normal">call</th>
+                  <th className="py-2 pr-6 font-normal">needs</th>
+                  <th className="py-2 font-normal">does</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SYSCALLS.map(([name, cap, what]) => (
+                  <tr key={name} className="border-b border-term-line/60">
+                    <td className="py-2 pr-6 font-mono text-[13px]">{name}</td>
+                    <td className="py-2 pr-6 font-mono text-[13px] text-term-dim">{cap}</td>
+                    <td className="py-2 text-term-dim">{what}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        </Section>
+
+        {/* 03 */}
+        <Section n="03" label="the log">
+          <h2 className="font-serif text-[30px] leading-tight md:text-[38px]">Every step is written down.</h2>
+          <p className="mt-4 max-w-[34rem] text-[15px] leading-[1.7] text-term-dim">
+            State changes, model calls, and syscalls go into an append-only table. The database refuses edits and deletes. This is the actual log of an agent
+            asked to write a program that prints the first fifteen primes:
+          </p>
+          <pre className="mt-7 overflow-x-auto rounded-[6px] border border-term-line bg-term-panel p-4 font-mono text-[12.5px] leading-[1.75]">
+            {LOG.map(([seq, pid, type, detail]) => (
+              <div key={seq} className="whitespace-pre">
+                <span className="text-term-dim">{seq.padStart(3)} </span>
+                <span className="text-term-dim">pid {pid} </span>
+                <span className={type === "SYSCALL" ? "text-highlight" : ""}>{type.padEnd(13)}</span> {detail}
+              </div>
+            ))}
+          </pre>
+          <p className="mt-6 max-w-[34rem] text-[15px] leading-[1.7] text-term-dim">
+            Because the log is complete, the console can rewind any job to any point and show exactly what the model saw and said at that moment.
+          </p>
+        </Section>
+
+        <Figure
+          src="/landing/traces.jpg"
+          width={1440}
+          height={860}
+          alt="The Traces view: a job's event log on the left, the rebuilt kernel state at a chosen sequence number on the right."
+          caption="Traces. Drag the slider back and the process table on the right is rebuilt from the log up to that event."
+        />
+
+        {/* 04 */}
+        <Section n="04" label="your key">
+          <h2 className="font-serif text-[30px] leading-tight md:text-[38px]">Bring your own key.</h2>
+          <div className="mt-4 max-w-[34rem] space-y-4 text-[15px] leading-[1.7] text-term-dim">
+            <p>
+              Agents run on an API key from{" "}
+              <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="text-term-fg underline decoration-term-line underline-offset-4">
+                Anthropic
+              </a>{" "}
+              or{" "}
+              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="text-term-fg underline decoration-term-line underline-offset-4">
+                OpenAI
+              </a>
+              . Add one or both, then give the same task to Claude and GPT and compare the steps, the tokens, and the bill.
+            </p>
+            <p>
+              The key stays in your browser. The server holds it in memory while your job runs and never writes it down. A Claude.ai or ChatGPT subscription
+              will not work here, because neither lets other apps run models on it.
+            </p>
+          </div>
+        </Section>
+
+        {/* 05 */}
+        <Section n="05" label="limits">
+          <h2 className="font-serif text-[30px] leading-tight md:text-[38px]">What it does not do yet.</h2>
+          <ul className="mt-5 max-w-[34rem] space-y-3 text-[15px] leading-[1.65] text-term-dim">
+            {LIMITS.map((l) => (
+              <li key={l} className="flex gap-3">
+                <span className="mt-[0.7em] h-px w-3 shrink-0 bg-term-dim" />
+                {l}
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        <section className="border-t border-term-line py-16">
+          <p className="font-serif text-[28px] leading-snug md:text-[34px]">
+            Give it a task and watch it work.{" "}
+            <Link href={start.href} className="text-highlight underline decoration-1 underline-offset-[6px] hover:opacity-80">
+              {start.label.toLowerCase()} →
+            </Link>
+          </p>
         </section>
       </main>
 
-      <footer className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-6 text-xs text-term-dim md:px-6">
-        <span>KernelAgent · open source</span>
-        <a href={REPO_URL} target="_blank" rel="noreferrer" className="ml-auto hover:text-term-fg">
-          Source on GitHub
-        </a>
+      <footer className="border-t border-term-line">
+        <div className="mx-auto flex max-w-[1080px] flex-wrap items-center gap-x-6 gap-y-2 px-5 py-6 font-mono text-[11.5px] text-term-dim">
+          <span>kernelagent</span>
+          <span>TypeScript · Fastify · SQLite · Next.js</span>
+          <a href={REPO_URL} target="_blank" rel="noreferrer" className="ml-auto hover:text-term-fg">
+            github.com/vishanthashok/KernelAgent
+          </a>
+        </div>
       </footer>
     </div>
   );
 }
 
-function KeyHow({ title, vendor, href, steps }: { title: string; vendor: string; href: string; steps: string[] }) {
+/** A numbered section: the number and a short label sit in the left margin on wide screens. */
+function Section({ id, n, label, children }: { id?: string; n: string; label: string; children: React.ReactNode }) {
   return (
-    <div className="card p-5">
-      <div className="flex items-baseline gap-2">
-        <span className="text-[15px] font-semibold">{title}</span>
-        <span className="text-xs text-term-dim">{vendor}</span>
-        <a href={href} target="_blank" rel="noreferrer" className="ml-auto text-xs text-term-accent underline">
-          Get a key
-        </a>
+    <section id={id} className="grid gap-4 border-t border-term-line py-14 md:grid-cols-[180px_1fr] md:gap-10 md:py-20">
+      <div className="font-mono text-[12px] text-term-dim">
+        {n} <span className="text-term-line">/</span> {label}
       </div>
-      <ol className="mt-3 list-decimal space-y-1 pl-5 text-[13px] text-term-dim">
-        {steps.map((s) => (
-          <li key={s}>{s}</li>
-        ))}
-      </ol>
-    </div>
+      <div className="min-w-0">{children}</div>
+    </section>
+  );
+}
+
+function Code({ children }: { children: string }) {
+  return (
+    <pre className="mt-7 overflow-x-auto rounded-[6px] border border-term-line bg-term-panel p-4 font-mono text-[12.5px] leading-[1.7] text-term-fg">
+      {children}
+    </pre>
+  );
+}
+
+function Figure({ src, width, height, alt, caption, priority }: { src: string; width: number; height: number; alt: string; caption: string; priority?: boolean }) {
+  return (
+    <figure className="mb-14 md:mb-20">
+      <div className="overflow-hidden rounded-[8px] border border-term-line">
+        <Image src={src} width={width} height={height} alt={alt} className="block h-auto w-full" priority={priority ?? false} sizes="(min-width: 1080px) 1040px, 100vw" />
+      </div>
+      <figcaption className="mt-3 font-mono text-[11.5px] leading-relaxed text-term-dim">{caption}</figcaption>
+    </figure>
   );
 }
