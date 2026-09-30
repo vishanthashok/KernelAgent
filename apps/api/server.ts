@@ -15,6 +15,13 @@ export interface ServerOptions {
    * signs user tokens with it. Jobs and memory then need a signed-in user.
    */
   accountsSecret?: string;
+  /**
+   * Fail closed: when set, every route except /health answers 503 with this reason. main.ts
+   * sets it for a deployed API that has no accounts, so no one's data is ever public.
+   */
+  locked?: string;
+  /** Browser origins allowed to call the API (the console's URL). Unset allows any origin. */
+  allowedOrigins?: string[];
 }
 
 const num = (v: unknown, d: number) => {
@@ -27,7 +34,25 @@ export const USER_KEY_HEADER = "x-provider-key";
 
 export async function buildServer(kernel: Kernel, opts: ServerOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: opts.logger ?? false });
-  await app.register(cors, { origin: true, methods: ["GET", "HEAD", "POST", "PUT", "DELETE"] });
+  await app.register(cors, { origin: opts.allowedOrigins?.length ? opts.allowedOrigins : true, methods: ["GET", "HEAD", "POST", "PUT", "DELETE"] });
+
+  // Every response: no sniffing, no framing, no referrer (tokens can sit in download links),
+  // and no caching of anyone's data.
+  app.addHook("onSend", async (_req, reply, payload) => {
+    reply.header("x-content-type-options", "nosniff");
+    reply.header("x-frame-options", "DENY");
+    reply.header("referrer-policy", "no-referrer");
+    reply.header("cache-control", "no-store");
+    return payload;
+  });
+
+  if (opts.locked) {
+    const reason = opts.locked;
+    app.addHook("onRequest", async (req, reply) => {
+      if (req.url === "/health" || req.method === "OPTIONS") return;
+      return reply.code(503).send({ error: reason });
+    });
+  }
   await app.register(websocket);
 
   if (opts.devToken) {

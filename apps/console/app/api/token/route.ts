@@ -5,7 +5,7 @@ import { authEnabled, currentUser } from "@/auth";
 import { accountsSecret } from "@/lib/server-api";
 
 export const dynamic = "force-dynamic";
-const TTL_MS = 60 * 60_000;
+const TTL_MS = 15 * 60_000;
 
 export async function GET() {
   const user = authEnabled && accountsSecret ? await currentUser() : undefined;

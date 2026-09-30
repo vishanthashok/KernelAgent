@@ -209,6 +209,9 @@ curl -XPOST localhost:4000/processes/101/signal -H 'content-type: application/js
 | `OPENAI_API_KEY` | | Server key for GPT models. With `LLM_PROVIDER=anthropic` it turns on `multi`. |
 | `ANTHROPIC_MODEL` / `OPENAI_MODEL` | `claude-opus-5` / `gpt-5` | Default model ids. A job can pick another with `"model"` in its spec, or from the chat's model picker. |
 | `REQUIRE_USER_KEY` | | `true` makes every job bring its own key (the `x-provider-key` header, set from `/connect`). The server's keys are never used. The API server always runs this way unless `ALLOW_SERVER_KEY=true`. |
+| `ALLOWED_ORIGINS` | | API. Comma-separated browser origins allowed to call it, for example your console's URL. Unset allows any origin. |
+| `OPEN_API` | | API. A deployed API (NODE_ENV=production or on Railway, Render, Fly) with no `ACCOUNTS_SECRET` is locked: only `/health` answers. `true` opens it without accounts. |
+| `ALLOW_LOCAL_EXEC` | | API. On a deployed server the local sandbox refuses `EXEC`, since a command could read the database and secrets. `true` allows it anyway. Use `SANDBOX_PROVIDER=e2b` instead. |
 | `ALLOW_SERVER_KEY` | | API only. `true` lets jobs without a key run on the server's `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`. Off by default, so a public deploy never bills the owner. |
 | `SANDBOX_PROVIDER` | `local` | `local` or `e2b` |
 | `E2B_API_KEY` | | Required for `e2b`. Without it `local` is used. |

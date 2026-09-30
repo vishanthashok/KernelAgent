@@ -216,3 +216,57 @@ describe("job ownership", () => {
     await kernel.stop();
   });
 });
+
+describe("hardening", () => {
+  it("a locked server answers only /health", async () => {
+    const { kernel } = makeKernel();
+    app = await buildServer(kernel, { locked: "set ACCOUNTS_SECRET" });
+    expect((await app.inject({ method: "GET", url: "/health" })).statusCode).toBe(200);
+    for (const url of ["/jobs", "/events?sinceSeq=0", "/processes", "/metrics", "/models"]) {
+      const res = await app.inject({ method: "GET", url });
+      expect(res.statusCode).toBe(503);
+      expect(res.json().error).toBe("set ACCOUNTS_SECRET");
+    }
+    expect((await app.inject({ method: "POST", url: "/jobs", payload: { process: { role: "r", goal: "g" } } })).statusCode).toBe(503);
+  });
+
+  it("sends security headers and honors the origin allowlist", async () => {
+    const { kernel } = makeKernel();
+    app = await buildServer(kernel, { allowedOrigins: ["https://console.example"] });
+    const res = await app.inject({ method: "GET", url: "/health", headers: { origin: "https://evil.example" } });
+    expect(res.headers["x-frame-options"]).toBe("DENY");
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+    const ok = await app.inject({ method: "GET", url: "/health", headers: { origin: "https://console.example" } });
+    expect(ok.headers["access-control-allow-origin"]).toBe("https://console.example");
+  });
+
+  it("a provider sign-in takes over an unverified email sign-up and removes its password", async () => {
+    const { app } = await setup();
+    const squatter = await signup(app, "victim@example.com", "attacker-pass");
+    expect(squatter.statusCode).toBe(201);
+    const owner = await app.inject({ method: "POST", url: "/accounts/oauth", headers: svc, payload: { email: "victim@example.com" } });
+    expect(owner.json().user.id).toBe(squatter.json().user.id);
+    const login = await app.inject({ method: "POST", url: "/accounts/login", headers: svc, payload: { email: "victim@example.com", password: "attacker-pass" } });
+    expect(login.statusCode).toBe(401);
+  });
+
+  it("a local sandbox with exec off refuses commands", async () => {
+    const { LocalSandbox } = await import("@kernelagent/sandbox");
+    const sb = new LocalSandbox({ allowExec: false });
+    const { sandboxId } = await sb.create("101");
+    await expect(sb.exec(sandboxId, "cat /proc/1/environ")).rejects.toThrow(/turned off/);
+    await sb.writeFile(sandboxId, "/a.txt", "files still work");
+    expect(await sb.readFile(sandboxId, "/a.txt")).toBe("files still work");
+    await sb.destroy(sandboxId);
+  });
+
+  it("rate-limits sign-ups across the server", async () => {
+    const { app } = await setup();
+    const codes: number[] = [];
+    for (let i = 0; i < 22; i++) codes.push((await signup(app, `u${i}@example.com`)).statusCode);
+    expect(codes.slice(0, 20).every((c) => c === 201)).toBe(true);
+    expect(codes.slice(20)).toEqual([429, 429]);
+  });
+});

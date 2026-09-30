@@ -117,6 +117,10 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 - Jobs have owners (`job_owners`, `Kernel.submitJob(spec, { owner })`). With accounts on, the API's `viewer()` in `server.ts` filters every read route and the WebSocket to the caller's own jobs.
 - Tests: `tests/accounts.test.ts`.
 
+## Security (public deploy)
+
+- See "Hardening for a public deploy" in `docs/decisions.md`. In short: locked API without accounts, no local `EXEC` when deployed, owner-only reads, provider sign-in removes squatted passwords, security headers, 15-minute user tokens. Tests are in `tests/accounts.test.ts` ("hardening").
+
 ## Chat
 
 - `/chat` is the chat (`apps/console/components/chat/*`), `/console` is the monitor (`components/Console.tsx`).

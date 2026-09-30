@@ -53,7 +53,7 @@ const LOG: [string, string, string, string][] = [
 ];
 
 const LIMITS = [
-  "The local sandbox is a temp folder, not a security boundary. Use the E2B sandbox if you need real isolation.",
+  "Agents on this site cannot run shell commands. The built-in sandbox is a temp folder, not a security boundary, so commands stay off unless the server uses the E2B sandbox.",
   "If the server restarts, running agents fail instead of resuming from their last checkpoint.",
   "There is a NET permission but no syscall that uses it yet, so agents cannot fetch web pages.",
   "Connecting tools like GitHub or Google Drive through MCP is planned, not built.",

@@ -135,6 +135,16 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **Jobs have owners.** `Kernel.submitJob(spec, { owner })` writes `job_owners` before the job's first event, and the owner never enters the spec or an event. With accounts on, every read route (`/jobs`, `/processes`, `/messages`, `/sandboxes`, `/artifacts`, `/events`, `/metrics`) and the WebSocket show only the caller's own jobs. Kill and signal work only on them. Another user's job, process, or file answers 404. The socket and file downloads take the token as `?userToken=`, since they cannot set headers. `/stats` stays global: it holds counts, not content.
 - **CORS allows PUT and DELETE.** It allowed only GET, HEAD, and POST before, which also blocked the console's memory deletes across origins.
 
+## Hardening for a public deploy
+
+- **Fail closed.** A deployed API (NODE_ENV=production, or Railway/Render/Fly env vars) with no `ACCOUNTS_SECRET` answers only `/health`. `buildServer({ locked })` does it. `OPEN_API=true` opts out.
+- **No host shell on a shared server.** LocalSandbox `EXEC` runs as the API's own user, which can read `/proc/<ppid>/environ` and the SQLite file. On a deployed server it refuses unless `ALLOW_LOCAL_EXEC=true`. File syscalls stay on, since they are confined to the sandbox folder.
+- **Unverified email sign-ups cannot hijack a provider account.** When GitHub or Google signs into an email that already has a password, the password is removed. Otherwise someone could sign up with another person's email first and keep access.
+- **Login time does not reveal accounts.** Unknown emails still run a scrypt check against a dummy hash.
+- **Sign-ups are capped** at 20 per minute server-wide (the console calls from its own IP, so per-IP limits would not work at the API).
+- **Headers.** API: nosniff, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`. Console: the same plus HSTS, `frame-ancestors 'none'`, and a Permissions-Policy. `ALLOWED_ORIGINS` limits CORS to the console.
+- **User tokens last 15 minutes** (they were 1 hour), so a signed-out session stops working soon after.
+
 ## Connectors (planned)
 
 - An `MCP` syscall gated by a new `CONNECTOR` capability, scoped by server name, so agents call tools on MCP servers (GitHub, Google Drive, Slack) under the same capability checks, approval gate, and event log as other syscalls.

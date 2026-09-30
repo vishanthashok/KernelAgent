@@ -18,6 +18,12 @@ const CHAT_ID = /^[A-Za-z0-9_-]{1,40}$/;
 const MAX_CHAT_BYTES = 512_000;
 const MAX_CHATS = 500;
 
+/** A valid hash of a random password, checked against when an email has no account. */
+const DUMMY_HASH = "scrypt$" + randomBytes(16).toString("base64") + "$" + randomBytes(32).toString("base64");
+
+/** Sign-ups across the whole server per minute, a backstop against scripted account creation. */
+const SIGNUPS_PER_MINUTE = 20;
+
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
   const hash = await scrypt(password, salt, 32);
@@ -71,6 +77,7 @@ export interface Accounts {
 export function registerAccounts(app: FastifyInstance, kernel: Kernel, secret: string): Accounts {
   const repos = kernel.repos;
   const limiter = new AttemptLimiter();
+  let signups: number[] = [];
 
   // The header, or ?userToken= for the WebSocket and file downloads, which cannot set headers.
   const userOf = (req: FastifyRequest) => {
@@ -96,6 +103,9 @@ export function registerAccounts(app: FastifyInstance, kernel: Kernel, secret: s
 
   app.post<{ Body: { email?: unknown; password?: unknown; name?: unknown } }>("/accounts/signup", async (req, reply) => {
     if (!service(req, reply)) return;
+    const now = kernel.now();
+    signups = signups.filter((t) => now - t < 60_000);
+    if (signups.length >= SIGNUPS_PER_MINUTE) return reply.code(429).send({ error: "Too many sign-ups right now. Try again in a minute." });
     const email = String(req.body?.email ?? "").trim().toLowerCase();
     const password = String(req.body?.password ?? "");
     const name = String(req.body?.name ?? "").trim().slice(0, 80);
@@ -107,6 +117,7 @@ export function registerAccounts(app: FastifyInstance, kernel: Kernel, secret: s
       // Signed in with GitHub or Google before: only that provider can prove the email.
       return reply.code(409).send({ error: "This email already has an account through GitHub or Google. Sign in with that." });
     }
+    signups.push(now);
     const user = repos.users.insert({
       id: newUserId(),
       email,
@@ -124,7 +135,9 @@ export function registerAccounts(app: FastifyInstance, kernel: Kernel, secret: s
     const now = kernel.now();
     if (limiter.blocked(email, now)) return reply.code(429).send({ error: "Too many attempts. Try again in a few minutes." });
     const user = repos.users.byEmail(email);
-    if (!user || !(await checkPassword(password, user.passwordHash))) {
+    // Hash even for unknown emails, so response time does not reveal which emails have accounts.
+    const ok = await checkPassword(password, user?.passwordHash ?? DUMMY_HASH);
+    if (!user || !user.passwordHash || !ok) {
       limiter.fail(email, now);
       return reply.code(401).send({ error: "Wrong email or password." });
     }
@@ -140,7 +153,12 @@ export function registerAccounts(app: FastifyInstance, kernel: Kernel, secret: s
     const name = typeof req.body?.name === "string" ? req.body.name.slice(0, 80) : undefined;
     const image = typeof req.body?.image === "string" && /^https:\/\//.test(req.body.image) ? req.body.image.slice(0, 500) : undefined;
     let user = repos.users.byEmail(email);
-    if (user) repos.users.update(user.id, { ...(name ? { name } : {}), ...(image ? { image } : {}) });
+    if (user) {
+      repos.users.update(user.id, { ...(name ? { name } : {}), ...(image ? { image } : {}) });
+      // Email sign-ups are not verified. If someone signed up with this address before its
+      // owner, drop their password: from now on only the provider can open the account.
+      if (user.passwordHash) repos.users.clearPassword(user.id);
+    }
     else user = repos.users.insert({ id: newUserId(), email, ...(name ? { name } : {}), ...(image ? { image } : {}), createdAt: kernel.now() });
     return { user: publicUser(repos.users.get(user.id)!) };
   });
