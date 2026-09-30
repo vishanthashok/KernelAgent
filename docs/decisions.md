@@ -125,6 +125,12 @@ Choices the brief left open, and deviations from it, with the reason for each.
 - **A job runs on one provider.** Its key and its model must match. The router refuses a mismatch, and `POST /jobs` rejects a model the key's provider does not list.
 - **OpenAI through Chat Completions.** Function tools map one-to-one onto syscall tools. Tool results become `role: "tool"` messages. Provider-opaque blocks (Anthropic thinking) are dropped, which is safe because a job never switches provider. OpenAI caches prefixes itself and reports only cache reads.
 
+## Chat finishing and snapshots
+
+- **A turn ends with its main agent.** Sub-agents may keep running after their parent exits (a parent can start a helper to write a file and leave). The chat used to wait for every process, so it looked stuck. Now the answer is final when the root finishes, and running helpers show as "still finishing". The kernel is unchanged: reaping children on exit would break that pattern.
+- **Turns carry a snapshot.** The finished answer, steps (last 60), files, tokens, and cost are saved into the chat, which syncs to the account. The chat no longer depends on the server still having the job's events.
+- **Files open in place.** Agents' files render in a side panel. HTML is shown in `sandbox=""` (no scripts, no same-origin), so a file cannot run code in the console.
+
 ## Accounts
 
 - **Accounts live in the API's database.** The console on Vercel has no database, and the API already has SQLite on a volume. Tables `users` and `chats`. Turned on by `ACCOUNTS_SECRET`, which the API and the console share.

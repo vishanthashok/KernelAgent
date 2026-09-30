@@ -52,6 +52,36 @@ const LOG: [string, string, string, string][] = [
   ["19", "101", "ARTIFACT", "primes.py (223 B)"],
 ];
 
+// What people use it for. Each example is something you could paste into the chat.
+const USES = [
+  {
+    title: "Research and compare",
+    body: "Helper agents look at each side, then one writes the verdict.",
+    example: "Compare Supabase and Firebase for a small app, with a table.",
+  },
+  {
+    title: "Write documents",
+    body: "Plans, reports, and tables come back as files you open right next to the chat.",
+    example: "Write a 2-week SQL study plan to plan.md.",
+  },
+  {
+    title: "Break down a project",
+    body: "A planner splits the work, helpers take the parts, and you see every step.",
+    example: "Plan my portfolio site as tasks with time estimates.",
+  },
+  {
+    title: "Keep your context",
+    body: "Each chat remembers what you told it, on any device you sign in from.",
+    example: "Remember I'm applying for backend roles.",
+  },
+];
+
+const START = [
+  { title: "Create an account", body: "Email and password, right at the top of this page." },
+  { title: "Add your API key", body: "From Anthropic or OpenAI. It stays in your browser." },
+  { title: "Describe a task", body: "Watch the agents work, then open what they made." },
+];
+
 const LIMITS = [
   "Agents on this site cannot run shell commands. The built-in sandbox is a temp folder, not a security boundary, so commands stay off unless the server uses the E2B sandbox.",
   "If the server restarts, running agents fail instead of resuming from their last checkpoint.",
@@ -120,6 +150,35 @@ export function Landing({
           <div className="md:pt-10">
             <AccountPanel user={user} accounts={accounts} providers={authEnabled ? providers : []} />
           </div>
+        </section>
+
+        {/* What it's for, in plain words */}
+        <section className="border-t border-term-line py-12 md:py-14">
+          <h2 className="font-serif text-[28px] leading-tight md:text-[34px]">Use it for</h2>
+          <div className="mt-7 grid gap-x-10 gap-y-7 sm:grid-cols-2 lg:grid-cols-4">
+            {USES.map((u) => (
+              <div key={u.title}>
+                <div className="text-[15px] font-medium">{u.title}</div>
+                <p className="mt-1.5 text-[14px] leading-relaxed text-term-dim">{u.body}</p>
+                <p className="mt-2.5 font-mono text-[12px] leading-relaxed text-highlight">“{u.example}”</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="border-t border-term-line py-12 md:py-14">
+          <h2 className="font-serif text-[28px] leading-tight md:text-[34px]">How to start</h2>
+          <ol className="mt-7 grid gap-6 sm:grid-cols-3">
+            {START.map((s, i) => (
+              <li key={s.title} className="flex gap-4">
+                <span className="font-serif text-[30px] leading-none text-highlight">{i + 1}</span>
+                <div>
+                  <div className="text-[15px] font-medium">{s.title}</div>
+                  <p className="mt-1 text-[14px] leading-relaxed text-term-dim">{s.body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <Figure

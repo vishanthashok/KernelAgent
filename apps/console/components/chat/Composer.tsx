@@ -146,7 +146,7 @@ export function Composer({
         </div>
       )}
 
-      <div className="rounded-lg border border-ink/15 bg-term-panel px-4 pt-3 pb-2.5 shadow-[0_10px_40px_rgba(0,0,0,0.35)] focus-within:border-ink/30">
+      <div className="rounded-[14px] border border-term-line bg-term-panel px-4 pt-3 pb-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.22)] transition-colors focus-within:border-accent/50">
         <textarea
           ref={box}
           value={text}
@@ -158,7 +158,7 @@ export function Composer({
             }
           }}
           rows={1}
-          placeholder="Ask your agents to do something…"
+          placeholder="Describe a task for your agents…"
           className="block max-h-60 w-full resize-none rounded-none border-0 bg-transparent py-1 text-[15px] leading-relaxed placeholder:text-term-dim focus:outline-none"
         />
         <div className="mt-2 flex items-center gap-2">
@@ -181,14 +181,14 @@ export function Composer({
             {options.approval ? " · approval on" : ""}
           </span>
           {running ? (
-            <button onClick={onStop} className="ml-auto flex h-9 w-9 items-center justify-center rounded-md bg-accent text-on-accent hover:bg-accent/85" title="Stop">
+            <button onClick={onStop} className="ml-auto flex h-9 w-9 items-center justify-center rounded-full bg-accent text-on-accent hover:bg-accent/85" title="Stop">
               <span className="h-3 w-3 rounded-[2px] bg-on-accent" />
             </button>
           ) : (
             <button
               onClick={send}
               disabled={!text.trim() || needsKey}
-              className="ml-auto flex h-9 w-9 items-center justify-center rounded-md bg-accent text-on-accent transition-opacity hover:bg-accent/85 disabled:opacity-30"
+              className="ml-auto flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[16px] font-semibold text-on-accent transition-opacity hover:bg-accent/85 disabled:opacity-25"
               title="Send"
             >
               ↑
