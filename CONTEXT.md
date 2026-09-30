@@ -127,7 +127,10 @@ Add an API route: `apps/api/server.ts`, test with `app.inject` in `tests/api.tes
 - Each user message is one job with one process. The goal is the message alone. With "Chat memory" on, the spec sets `memoryScope` to the chat id and the process gets the `MEMORY` capability, so context comes from the chat's memory (see below), not a resent transcript. Each turn gets a fresh sandbox, so earlier files are not available to later turns.
 - Advanced options: model, effort (unset means the model default), "Sub-agents at low effort" (sets `subagentEffort`), role, token budget, permissions, approval, chat memory.
 - Conversations live in the user's account when accounts are on, else in the browser's `localStorage` (`kernelagent.chats`).
-- `lib/steps.ts` turns a job's events into the step list shown in the thread. `lib/permissions.ts` is shared by the chat and the New Job modal.
+- `lib/steps.ts` turns a job's events into the step list shown in the thread.
+- A turn is finished when its root process is (or its saved `status` says so), not when every process is: helpers a root left running show as "still finishing". When the root finishes, `ChatApp` saves a snapshot into the turn (`status`, `answer`, `steps`, `files`, `tokens`, `cost`), so answers survive reloads, other devices, and a trimmed log. A turn whose job the live stream never shows (after its `live` message) is checked once with `GET /jobs/:id`, and a 404 marks it `lost`.
+- File cards open `components/chat/ArtifactPanel.tsx` on the right: markdown, PDF, images, CSV, sandboxed HTML (no scripts), and text with line numbers. It fetches through `artifactUrl`, so the user token applies.
+- The accent is amber (`--accent`), matching the logo and landing page. `lib/permissions.ts` is shared by the chat and the New Job modal.
 
 ## Models and user keys
 

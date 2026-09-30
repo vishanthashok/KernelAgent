@@ -122,6 +122,11 @@ export const api = {
   deleteChat: (id: string) => call<{ deleted: string }>(`/chats/${encodeURIComponent(id)}`, { method: "DELETE" }),
   clearMemory: (scope: string) => call<{ cleared: number }>(`/memory?scope=${encodeURIComponent(scope)}`, { method: "DELETE" }),
   stats: () => call<Stats>("/stats"),
+  /** One job and its processes. Throws "no such job" (404) when the server no longer has it. */
+  job: (id: string) =>
+    call<{ job: { id: string; status: string }; processes: { pid: string; parentPid?: string; status: string; result?: string; error?: string; tokensUsed: number; costUsd: number }[] }>(
+      `/jobs/${encodeURIComponent(id)}`,
+    ),
   /** Without a provider: what the server offers on its own keys. With one: what this browser's key for it can run. */
   models: (provider?: KeyProvider) => call<ModelsResponse>(provider ? `/models?provider=${provider}` : "/models", {}, provider),
   /** Check a key before saving it. */

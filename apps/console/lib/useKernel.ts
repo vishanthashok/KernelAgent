@@ -36,6 +36,8 @@ export interface Artifact {
 
 export interface KernelState {
   connected: boolean;
+  /** The stream has replayed the log up to now, so a missing job really is missing. */
+  live: boolean;
   stats?: Stats;
   /** Why the last /stats poll failed, if it did. Cleared on the next success. */
   apiError?: string;
@@ -61,6 +63,7 @@ export function useKernel(): KernelState {
   });
   const [version, setVersion] = useState(0);
   const [connected, setConnected] = useState(false);
+  const [live, setLive] = useState(false);
   const [stats, setStats] = useState<Stats>();
   const [apiError, setApiError] = useState<string>();
 
@@ -99,9 +102,11 @@ export function useKernel(): KernelState {
       ws.onmessage = (m) => {
         const msg = JSON.parse(String(m.data));
         if (msg.type === "event") ingest(msg.event as KernelEvent);
+        else if (msg.type === "live") setLive(true);
       };
       ws.onclose = () => {
         setConnected(false);
+        setLive(false);
         if (!closed) retry = setTimeout(() => void connect(), 1000);
       };
       ws.onerror = () => ws?.close();
@@ -142,6 +147,7 @@ export function useKernel(): KernelState {
   const s = store.current;
   return {
     connected,
+    live,
     ...(stats ? { stats } : {}),
     ...(apiError ? { apiError } : {}),
     events: s.events,

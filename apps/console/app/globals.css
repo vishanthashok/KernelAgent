@@ -12,8 +12,9 @@
   --line: #e1e3ea;
   --fg: #1f2330;
   --dim: #5f6677;
-  --link: #632ca6;
-  --accent: #632ca6;
+  /* Amber, matching the logo's cursor and the landing page. */
+  --link: #8f5a07;
+  --accent: #8f5a07;
   --on-accent: #ffffff;
   --ink: #1f2330;
   --sunk: #dfe2ea;
@@ -56,9 +57,9 @@
   --line: #2f3140;
   --fg: #e6e8ef;
   --dim: #9aa0b2;
-  --link: #b69cf0;
-  --accent: #8a5cd6;
-  --on-accent: #ffffff;
+  --link: #f0b44c;
+  --accent: #f0b44c;
+  --on-accent: #1a1406;
   --ink: #ffffff;
   --sunk: #000000;
   --nav: #16121f;
@@ -309,5 +310,28 @@ textarea:focus {
 @keyframes logo-blink {
   50% {
     opacity: 0;
+  }
+}
+
+/* The live "working" line: a soft highlight sweeps across the text. */
+.shimmer {
+  color: var(--dim);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .shimmer {
+    background: linear-gradient(90deg, var(--dim) 0%, var(--dim) 40%, var(--fg) 50%, var(--dim) 60%, var(--dim) 100%);
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 2.2s linear infinite;
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
   }
 }

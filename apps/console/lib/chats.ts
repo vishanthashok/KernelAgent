@@ -32,6 +32,27 @@ export interface ChatTurn {
   rootPid?: string;
   /** Submission error, if the job never started. */
   error?: string;
+  /**
+   * Saved the moment the turn finishes, so the answer, steps, and files survive a reload,
+   * another device, or the server trimming its log. Unset while the turn runs.
+   */
+  status?: TurnStatus;
+  answer?: string;
+  failure?: string;
+  steps?: string[];
+  files?: TurnFile[];
+  tokens?: number;
+  cost?: number;
+  finishedAt?: number;
+}
+
+export type TurnStatus = "done" | "failed" | "stopped" | "lost";
+
+export interface TurnFile {
+  id: number;
+  path: string;
+  mime: string;
+  size: number;
 }
 
 export interface Chat {
