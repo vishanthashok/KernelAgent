@@ -551,6 +551,10 @@ export class UserRepo {
     return r && toUser(r);
   }
 
+  clearPassword(id: string): void {
+    this.db.prepare("UPDATE users SET password_hash = NULL WHERE id = ?").run(id);
+  }
+
   /** Fill in a name, avatar, or password the account does not have yet. */
   update(id: string, f: { name?: string; image?: string; passwordHash?: string }): void {
     this.db

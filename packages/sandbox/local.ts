@@ -15,6 +15,11 @@ export interface LocalSandboxOptions {
   root?: string;
   execTimeoutMs?: number;
   maxOutputBytes?: number;
+  /**
+   * Allow EXEC. A command runs as the kernel's own user, so on a shared server it could read
+   * the database and the server's secrets. The API turns this off when deployed (see main.ts).
+   */
+  allowExec?: boolean;
 }
 
 interface Box {
@@ -30,11 +35,13 @@ export class LocalSandbox implements SandboxAdapter {
   private execTimeoutMs: number;
   private maxOutputBytes: number;
   private counter = 0;
+  private allowExec: boolean;
 
   constructor(opts: LocalSandboxOptions = {}) {
     this.root = opts.root ?? tmpdir();
     this.execTimeoutMs = opts.execTimeoutMs ?? 30_000;
     this.maxOutputBytes = opts.maxOutputBytes ?? 64 * 1024;
+    this.allowExec = opts.allowExec ?? true;
   }
 
   async create(pid: string): Promise<{ sandboxId: string }> {
@@ -75,6 +82,9 @@ export class LocalSandbox implements SandboxAdapter {
   }
 
   exec(sandboxId: string, cmd: string): Promise<ExecResult> {
+    if (!this.allowExec) {
+      return Promise.reject(new SandboxError("running commands is turned off on this server. It needs the E2B sandbox (SANDBOX_PROVIDER=e2b)."));
+    }
     const { dir } = this.box(sandboxId);
     return new Promise((resolvePromise) => {
       const child = spawn("sh", ["-c", cmd], {

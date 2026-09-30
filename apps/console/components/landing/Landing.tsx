@@ -2,6 +2,7 @@
 // a real job file, the real syscall table, and a real event log from the coding example.
 import Image from "next/image";
 import Link from "next/link";
+import { AccountPanel } from "./AccountPanel";
 import { Brand, REPO_URL } from "./Brand";
 import { UserMenu } from "@/components/shell/UserMenu";
 
@@ -52,20 +53,26 @@ const LOG: [string, string, string, string][] = [
 ];
 
 const LIMITS = [
-  "The local sandbox is a temp folder, not a security boundary. Use the E2B sandbox if you need real isolation.",
+  "Agents on this site cannot run shell commands. The built-in sandbox is a temp folder, not a security boundary, so commands stay off unless the server uses the E2B sandbox.",
   "If the server restarts, running agents fail instead of resuming from their last checkpoint.",
   "There is a NET permission but no syscall that uses it yet, so agents cannot fetch web pages.",
   "Connecting tools like GitHub or Google Drive through MCP is planned, not built.",
 ];
 
-export function Landing({ user, authEnabled, accounts }: { user?: User | undefined; authEnabled: boolean; accounts: boolean }) {
-  const start =
-    user || !authEnabled
-      ? { href: "/connect", label: "Open the app" }
-      : accounts
-        ? { href: "/signup", label: "Try it with your own key" }
-        : { href: "/login", label: "Try it with your own key" };
-  const signIn = !user && authEnabled && accounts;
+export function Landing({
+  user,
+  authEnabled,
+  accounts,
+  providers,
+}: {
+  user?: User | undefined;
+  authEnabled: boolean;
+  accounts: boolean;
+  providers: { id: string; name: string }[];
+}) {
+  // Signed-out visitors with sign-in available go to the account box in the hero.
+  const start = user ? { href: "/chat", label: "Open your chats" } : !authEnabled ? { href: "/connect", label: "Open the app" } : { href: "#account", label: "Create an account" };
+  const signIn = !user && authEnabled;
 
   return (
     <div className="min-h-dvh bg-term-bg text-term-fg">
@@ -80,9 +87,9 @@ export function Landing({ user, authEnabled, accounts }: { user?: User | undefin
               Source
             </a>
             {signIn && (
-              <Link href="/login" className="hover:text-term-fg">
+              <a href="#account" className="hover:text-term-fg">
                 Sign in
-              </Link>
+              </a>
             )}
             {user && <UserMenu user={user} />}
           </nav>
@@ -91,25 +98,27 @@ export function Landing({ user, authEnabled, accounts }: { user?: User | undefin
 
       <main className="mx-auto max-w-[1080px] px-5">
         {/* Hero */}
-        <section className="pt-16 pb-12 md:pt-24">
-          <p className="font-mono text-[12px] text-term-dim">open source · TypeScript · runs on Claude or GPT</p>
-          <h1 className="mt-5 max-w-[14ch] font-serif text-[44px] leading-[1.02] font-normal tracking-[-0.02em] md:text-[76px]">
-            Agents, run like <em className="text-highlight">processes.</em>
-          </h1>
-          <p className="mt-7 max-w-[36rem] text-[16px] leading-[1.65] text-term-dim">
-            KernelAgent is a small operating system for AI agents. You give it a task. It splits the work into processes, schedules them, lets them act only
-            through checked system calls, runs their code in a sandbox, and writes every step to a log you can replay.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Link
-              href={start.href}
-              className="rounded-[5px] bg-term-fg px-4 py-2.5 text-[14px] font-medium text-term-bg transition-opacity hover:opacity-85"
+        <section className="grid items-start gap-10 pt-14 pb-14 md:grid-cols-[1fr_360px] md:gap-14 md:pt-24">
+          <div>
+            <p className="font-mono text-[12px] text-term-dim">open source · TypeScript · runs on Claude or GPT</p>
+            <h1 className="mt-5 max-w-[14ch] font-serif text-[44px] leading-[1.02] font-normal tracking-[-0.02em] md:text-[72px]">
+              Agents, run like <em className="text-highlight">processes.</em>
+            </h1>
+            <p className="mt-7 max-w-[34rem] text-[16px] leading-[1.65] text-term-dim">
+              KernelAgent is a small operating system for AI agents. You give it a task. It splits the work into processes, schedules them, lets them act only
+              through checked system calls, runs their code in a sandbox, and writes every step to a log you can replay.
+            </p>
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-6 inline-block text-[14px] text-term-dim underline decoration-term-line underline-offset-4 hover:text-term-fg"
             >
-              {start.label}
-            </Link>
-            <a href={REPO_URL} target="_blank" rel="noreferrer" className="text-[14px] text-term-dim underline decoration-term-line underline-offset-4 hover:text-term-fg">
               Read the source
             </a>
+          </div>
+          <div className="md:pt-10">
+            <AccountPanel user={user} accounts={accounts} providers={authEnabled ? providers : []} />
           </div>
         </section>
 
@@ -210,6 +219,10 @@ export function Landing({ user, authEnabled, accounts }: { user?: User | undefin
               The key stays in your browser. The server holds it in memory while your job runs and never writes it down. A Claude.ai or ChatGPT subscription
               will not work here, because neither lets other apps run models on it.
             </p>
+            <p>
+              Your account keeps the rest: every chat, what your agents saved to memory along the way, and your job history. Sign in on another device and
+              it is all there.
+            </p>
           </div>
         </Section>
 
@@ -228,7 +241,7 @@ export function Landing({ user, authEnabled, accounts }: { user?: User | undefin
 
         <section className="border-t border-term-line py-16">
           <p className="font-serif text-[28px] leading-snug md:text-[34px]">
-            Give it a task and watch it work.{" "}
+            {user ? "Pick up where you left off." : "Give it a task and watch it work."}{" "}
             <Link href={start.href} className="text-highlight underline decoration-1 underline-offset-[6px] hover:opacity-80">
               {start.label.toLowerCase()} →
             </Link>

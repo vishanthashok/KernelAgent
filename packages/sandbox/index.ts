@@ -10,7 +10,7 @@ export { LocalSandbox } from "./local.ts";
  * Select a provider from env. SANDBOX_PROVIDER=local|e2b (default local).
  * Falls back to LocalSandbox when E2B has no key.
  */
-export async function createSandbox(env: NodeJS.ProcessEnv = process.env): Promise<SandboxAdapter> {
+export async function createSandbox(env: NodeJS.ProcessEnv = process.env, localOpts: { allowExec?: boolean } = {}): Promise<SandboxAdapter> {
   const provider = (env.SANDBOX_PROVIDER ?? "local").toLowerCase();
   if (provider === "e2b") {
     if (!env.E2B_API_KEY) {
@@ -23,5 +23,5 @@ export async function createSandbox(env: NodeJS.ProcessEnv = process.env): Promi
     console.warn(`[sandbox] unknown SANDBOX_PROVIDER=${provider}. Using LocalSandbox.`);
   }
   const { LocalSandbox } = await import("./local.ts");
-  return new LocalSandbox();
+  return new LocalSandbox(localOpts);
 }
