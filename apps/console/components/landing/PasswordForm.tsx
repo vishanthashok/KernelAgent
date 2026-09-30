@@ -6,9 +6,11 @@ import type { FormState } from "@/app/actions";
 export function PasswordForm({
   action,
   mode,
+  buttonClass = "pill pill-light mt-1 w-full justify-center py-2 text-sm disabled:opacity-50",
 }: {
   action: (prev: FormState, form: FormData) => Promise<FormState>;
   mode: "signin" | "signup";
+  buttonClass?: string;
 }) {
   const [state, submit, pending] = useActionState(action, {});
   const field = "w-full border px-3 py-2 text-sm";
@@ -37,7 +39,7 @@ export function PasswordForm({
         />
       </label>
       {state.error && <p className="text-xs text-danger" role="alert">{state.error}</p>}
-      <button type="submit" disabled={pending} className="pill pill-light mt-1 w-full justify-center py-2 text-sm disabled:opacity-50">
+      <button type="submit" disabled={pending} className={buttonClass}>
         {pending ? "One moment…" : mode === "signup" ? "Create account" : "Sign in"}
       </button>
     </form>
